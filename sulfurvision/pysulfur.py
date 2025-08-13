@@ -8,103 +8,152 @@ import typing
 
 import numpy as np
 
-def xorshift32(seed: int) -> int:
-    seed ^= (seed << 13) & 0xffffffff
-    seed ^= (seed >> 17) & 0xffffffff
-    seed ^= (seed << 5) & 0xffffffff
-    return seed
+from sulfurvision import prng, types, util, variations
 
-def lcg32(seed: int) -> int:
-    mul = 1664525
-    inc = 1013904223
-    return (seed * mul + inc) & 0xffffffff
 
-_randfunc = xorshift32
+def affine_transform(coord: types.Coord, affine: types.AffineTransform) -> types.Coord:
+    """Apply an affine transform to a 2D coordinate and return the result."""
+    return (
+        coord[0] * affine[0] + coord[1] * affine[1] + affine[2],
+        coord[0] * affine[3] + coord[1] * affine[4] + affine[5],
+    )
 
-AffineTransform = tuple[float, float, float, float, float, float]
-ParamsList = list[float]
-Coord = tuple[float, float]
-VariationFunc = typing.Callable[[Coord, AffineTransform, ParamsList], Coord]
 
 @dataclasses.dataclass
-class Variation:
-    function: VariationFunc
-    num_params: int
-    params_base: int = dataclasses.field(init=False, default=0)
-    
-    variations: typing.ClassVar[list['Variation']] = []
-    param_counter: typing.ClassVar[int] = 0
-    
-    def __post_init__(self):
-        self.params_base = Variation.param_counter
-        Variation.param_counter += self.num_params
-        Variation.variations.append(self)
-    
-    def __call__(self, coord: Coord, affine: AffineTransform, params: ParamsList) -> Coord:
-        return self.function(coord, affine, params[self.params_base : self.params_base + self.num_params])
+class Event:
+    """A logged event of a particle having a certain color at a certain coordinate."""
 
-variation_linear = Variation(lambda xy, affine, params: xy, 0)
+    coord: types.Coord
+    color: float
 
-def affine_transform(coord: Coord, affine: AffineTransform) -> Coord:
-    return (coord[0] * affine[0] + coord[1] * affine[1] + affine[2], coord[0] * affine[3] + coord[1] * affine[4] + affine[5])
 
 @dataclasses.dataclass
 class State:
-    coord: Coord
+    """The state of one particle at one epoch. Essentially an event plus a PRNG seed."""
+
+    coord: types.Coord
     seed: int
     color: float = 0
 
+    def log_event(self) -> Event:
+        return Event(self.coord, self.color)
+
+
 @dataclasses.dataclass
 class Transform:
+    """A transform is a weighted list of variations plus metadata.
+    Applying a transform applies the weighted sum of all variations,
+    but only one transform is chosen psueod-randomly per iteration.
+    """
+
     weights: list[float]
-    params: ParamsList
-    affine: AffineTransform
+    # Params of all variations
+    params: types.ParamsList
+    # Transform applied before each variation
+    affine: types.AffineTransform
+    # Probability of this transform being chosen
     probability: float
+    # Color applied when this transform is chosen
     color: float
-    
+    # LERP factor for color mixing
+    color_speed: float = 0.5
+
     def __call__(self, state: State) -> State:
-        x, y = 0., 0.
+        x, y = 0.0, 0.0
+        seed = state.seed
+        transformed = affine_transform(state.coord, self.affine)
         for i, weight in enumerate(self.weights):
-            variation = Variation.variations[i]
-            dx, dy = variation(affine_transform(state.coord, self.affine), self.affine, self.params)
+            variation = variations.Variation.variations[i]
+            coord, seed = variation(transformed, self.affine, self.params, seed)
+            dx, dy = coord
             x += dx * weight
             y += dy * weight
-        return State((x,  y), state.seed, (state.color + self.color) / 2)
+        return State((x, y), seed, self.__mix_color(state.color))
+
+    def __mix_color(self, color: float) -> float:
+        return util.lerp(color, self.color, self.color_speed)
+
 
 @dataclasses.dataclass
 class Flame:
+    """All parameters of generating a flame fractal:
+    All available transformations, a color palette, and an affine transform.
+    """
+
     transforms: list[Transform]
+    palette: types.Colorizer
+    camera: types.AffineTransform = types.IdentityAffine
     total_weight: float = dataclasses.field(init=False, default=0)
-    
+
     def __post_init__(self):
         self.total_weight = sum(map(lambda x: x.probability, self.transforms))
-    
+
     def iterate(self, state: State) -> State:
-        state.seed = _randfunc(state.seed)
-        weight = state.seed / 0x100000000 * self.total_weight
+        """Apply one iteration of the chaos game to one particle state."""
+        state.seed, weight = prng.rand_uniform(state.seed, self.total_weight)
         for i, transform in enumerate(self.transforms):
             if weight >= transform.probability:
                 weight -= transform.probability
                 continue
             return transform(state)
         else:
-            raise 'Error calculating weights'
-    
-    def plot(self, size: Coord, seeds: list[int], iters: int, skip: int = 20) -> np.ndarray:
+            raise Exception("Error calculating weights")
+
+    def iterate_step(self, states: list[State], grid: types.ImageGrid | None) -> None:
+        """Performs one iteration on each state in a list, and returns the list of logged events.
+        Modifies states to the new states, but does not modify any State objects passed within the list.
+        """
+        for i, state in enumerate(states):
+            new_state = self.iterate(state)
+            states[i] = new_state
+            coord = affine_transform(new_state.coord, self.camera)
+            if not (0 <= coord[0] < 1 and 0 <= coord[1] < 1) or grid is None:
+                continue
+            x, y = int(coord[0] * grid.shape[0]), int(coord[1] * grid.shape[1])
+            color = self.palette(new_state.color)
+            grid[x, y] += color
+
+    def iterate_steps(
+        self, initial_states: list[State], grid: types.ImageGrid, epochs: int
+    ) -> None:
+        for _ in range(epochs):
+            self.iterate_step(initial_states, grid)
+
+    def plot(
+        self,
+        size: tuple[int, int, int],
+        seeds_in: list[int] | list[State] | tuple[int, int],
+        iters: int,
+        skip: int = 20,
+    ) -> types.ImageGrid:
+        """Generate an image array for this fractal."""
+        # TODO supersampling
+        # Populate starting states
         states: list[State] = []
-        for seed in seeds:
-            seed = _randfunc(seed)
-            x = int(seed / 0x100000000) * 2 - 1
-            seed = _randfunc(seed)
-            y = int(seed / 0x100000000) * 2 - 1
-            states.append(State((x, y), seed))
+        if isinstance(seeds_in, list):
+            if not seeds_in:
+                raise Exception("seeds_in cannot be empty list")
+            if isinstance(seeds_in[0], int):
+                for seed in seeds_in:
+                    if not isinstance(seed, int):
+                        raise Exception("All members of seeds_in must be int or State")
+                    seed, cx = prng.rand_uniform(seed)
+                    seed, cy = prng.rand_uniform(seed)
+                    states.append(State((cx, cy), seed))
+            elif isinstance(seeds_in[0], State):
+                for seed in seeds_in:
+                    if not isinstance(seed, State):
+                        raise Exception("All members of seeds_in must be int or State")
+                    states.append(seed)
+        elif isinstance(seeds_in, tuple):
+            n_seeds, seed_base = seeds_in
+            for i in range(n_seeds):
+                seed = seed_base + i
+                seed, cx = prng.rand_uniform(seed)
+                seed, cy = prng.rand_uniform(seed)
+                states.append(State((cx, cy), seed))
         grid = np.zeros(size)
-        for itr in range(iters):
-            for i, state in enumerate(states):
-                state = self.iterate(state)
-                states[i] = state
-                if itr >= skip:
-                    x, y = int((state.coord[0] + 1) / 2 * size[0]), int((state.coord[1] + 1) / 2 * size[1])
-                    if 0 <= x < size[0] and 0 <= y < size[1]:
-                        grid[(x, y)] = (grid[(x, y)] + state.color) / 2
+        self.iterate_steps(states, None, skip)
+        no_skip = iters - skip
+        self.iterate_steps(states, grid, no_skip)
         return grid
