@@ -63,6 +63,8 @@ class Transform:
         seed = state.seed
         transformed = affine_transform(state.coord, self.affine)
         for i, weight in enumerate(self.weights):
+            if abs(weight) < 1e-9:
+                continue
             variation = variations.Variation.variations[i]
             coord, seed = variation(transformed, self.affine, self.params, seed)
             dx, dy = coord
