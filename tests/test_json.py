@@ -90,7 +90,7 @@ def test_anim():
     w, h = 200, 200
     for n_frame in range(num_frames):
         z = n_frame / (num_frames - 1)
-        transforms = [pysulfur.Transform.lerp(a, b, z) for (a, b) in zip(frame0_ts, frame1_ts)]
+        transforms = [pysulfur.Transform.lerp(a, b, z / 20) for (a, b) in zip(frame0_ts, frame1_ts)]
         flame.transforms = transforms
         flame.update_total_weight()
         array = flame.plot((w, h, 4), seeds, 20000)
@@ -102,7 +102,9 @@ def test_anim():
                         (x, y),
                         tuple((array[x, y, :-1] * 255 / array[x, y, -1]).astype(int)),
                     )
+        filename = f'test_anim{n_frame}.png'
         img.save(f"test_anim{n_frame}.png")
+        print(f'Saved {filename}...')
 
 def main():
     test_anim()
