@@ -4,6 +4,7 @@ Purely Pythonic implementation of fractal generation
 """
 
 import dataclasses
+import json
 import typing
 
 import numpy as np
@@ -73,6 +74,49 @@ class Transform:
     def __mix_color(self, color: float) -> float:
         return util.lerp(color, self.color, self.color_speed)
 
+    def dump_json(self) -> str:
+        return json.dumps({
+            'weights': list[self.weights],
+            'params': list[self.params],
+            'affine': list[self.affine],
+            'probability': self.probability,
+            'color': self.color,
+            'color_speed': self.color_speed,
+        })
+
+    @staticmethod
+    def read_json(jsn: str) -> typing.Union[list['Transform'], 'Transform']:
+        d = json.loads(jsn)
+        if isinstance(d, list):
+            return list(map(Transform.from_dict, d))
+        return Transform.from_dict(d)
+
+    @staticmethod
+    def from_dict(d: dict) -> 'Transform':
+        if isinstance(d['weights'], dict):
+            weights = variations.Variation.as_weights(d['weights'])
+        else:
+            weights = np.array(d['weights'], dtype=np.float64)
+        if isinstance(d['params'], dict):
+            params = variations.Variation.as_params(d['params'])
+        else:
+            params = np.array(d['params'], dtype=np.float64)
+        affine = np.array(d['affine'], dtype=np.float64)
+        probability = d['probability']
+        color = d['color']
+        color_speed = d['color_speed']
+        return Transform(weights, params, affine, probability, color, color_speed)
+
+    @staticmethod
+    def lerp(t0: 'Transform', t1: 'Transform', z: float) -> 'Transform':
+        weights = util.lerp(t0.weights, t1.weights, z)
+        params = util.lerp(t0.params, t1.params, z)
+        affine = util.lerp(t0.affine, t1.affine, z)
+        probability = util.lerp(t0.probability, t1.probability, z)
+        color = util.lerp(t0.color, t1.color, z)
+        color_speed = util.lerp(t0.color_speed, t1.color_speed, z)
+        return Transform(weights, params, affine, probability, color, color_speed)
+
 
 @dataclasses.dataclass
 class Flame:
@@ -86,6 +130,9 @@ class Flame:
     total_weight: float = dataclasses.field(init=False, default=0)
 
     def __post_init__(self):
+        self.update_total_weight()
+
+    def update_total_weight(self):
         self.total_weight = sum(map(lambda x: x.probability, self.transforms))
 
     def iterate(self, state: State) -> State:
