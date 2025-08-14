@@ -35,3 +35,6 @@ OpenCL kernels IO:
   - Seeds
   - Image grid
   - New seeds output?
+
+OpenCL Variation function signature:
+`float2 variation_NAME(float4 xyrt, __global uint* seed, __constant float* params, __constant float* affine);`
