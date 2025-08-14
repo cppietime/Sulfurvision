@@ -5,8 +5,8 @@ from sulfurvision import pysulfur, util, variations
 
 
 def test_affine():
-    affine = (0.5, 0, 0.5, 0, 0.5, 0)
-    coord = (1.5, 0.25)
+    affine = np.array((0.5, 0, 0.5, 0, 0.5, 0))
+    coord = np.array((1.5, 0.25))
     print(pysulfur.affine_transform(coord, affine))
 
 
@@ -18,8 +18,8 @@ def test_gasket():
                 variations.variation_bent.name: 0.125,
             }
         ),
-        [],
-        (0.75, 0, 0, 0, 0.75, 0),
+        variations.Variation.as_params({}),
+        np.array((0.75, 0, 0, 0, 0.75, 0)),
         1.0 / 3,
         0,
     )
@@ -30,8 +30,8 @@ def test_gasket():
                 variations.variation_exponential.name: 1,
             }
         ),
-        [],
-        (0.75, 0, 0.25, 0, 0.75, 0),
+        variations.Variation.as_params({}),
+        np.array((0.75, 0, 0.25, 0, 0.75, 0)),
         1.0 / 3,
         1,
     )
@@ -46,7 +46,7 @@ def test_gasket():
                 variations.variation_pdj.name: [1, 2, 0.5, -1.2],
             }
         ),
-        (0.8, 0, 0, 0, 0.8, 0.34),
+        np.array((0.8, 0, 0, 0, 0.8, 0.34)),
         1.0 / 3,
         2,
     )
@@ -57,7 +57,7 @@ def test_gasket():
     flame = pysulfur.Flame(
         [t1, t2, t3],
         lambda x: util.lerp(wheel[int(x)], wheel[int(x) + 1], x - int(x)),
-        (0.5, 0, 0.5, 0, 0.5, 0.5),
+        np.array((0.5, 0, 0.5, 0, 0.5, 0.5)),
     )
     seeds = list(range(1, 13))
     w, h = 400, 400

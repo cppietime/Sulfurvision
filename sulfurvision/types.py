@@ -6,12 +6,12 @@ import numpy as np
 Applying this transform to (x, y) is equivalent to:
 (A*x + B*y + C, D*x + E*y + F)
 """
-AffineTransform = tuple[float, float, float, float, float, float]
-IdentityAffine = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+AffineTransform = np.ndarray[tuple[typing.Literal[6]], np.dtype[np.float64]]
+IdentityAffine = np.array([1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
 # A list of all the parameters used by all variations in order
-ParamsList = list[float]
+ParamsList = np.ndarray[tuple[int], np.dtype[np.float64]]
 # A 2-D coordinate in continuous real space
-Coord = tuple[float, float]
+Coord = np.ndarray[tuple[typing.Literal[2]], np.dtype[np.float64]]
 # A variation transform function that may access the current coordinate, affine transform, and its own parameters
 VariationFunc = typing.Callable[
     [Coord, AffineTransform, ParamsList, int], tuple[Coord, int]

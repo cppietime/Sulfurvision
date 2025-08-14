@@ -13,10 +13,10 @@ from sulfurvision import prng, types, util, variations
 
 def affine_transform(coord: types.Coord, affine: types.AffineTransform) -> types.Coord:
     """Apply an affine transform to a 2D coordinate and return the result."""
-    return (
+    return np.array((
         coord[0] * affine[0] + coord[1] * affine[1] + affine[2],
         coord[0] * affine[3] + coord[1] * affine[4] + affine[5],
-    )
+    ))
 
 
 @dataclasses.dataclass
@@ -46,7 +46,7 @@ class Transform:
     but only one transform is chosen psueod-randomly per iteration.
     """
 
-    weights: list[float]
+    weights: types.ParamsList
     # Params of all variations
     params: types.ParamsList
     # Transform applied before each variation
@@ -59,7 +59,7 @@ class Transform:
     color_speed: float = 0.5
 
     def __call__(self, state: State) -> State:
-        x, y = 0.0, 0.0
+        xy = np.zeros(2)
         seed = state.seed
         transformed = affine_transform(state.coord, self.affine)
         for i, weight in enumerate(self.weights):
@@ -67,10 +67,8 @@ class Transform:
                 continue
             variation = variations.Variation.variations[i]
             coord, seed = variation(transformed, self.affine, self.params, seed)
-            dx, dy = coord
-            x += dx * weight
-            y += dy * weight
-        return State((x, y), seed, self.__mix_color(state.color))
+            xy += coord * weight
+        return State(xy, seed, self.__mix_color(state.color))
 
     def __mix_color(self, color: float) -> float:
         return util.lerp(color, self.color, self.color_speed)
@@ -84,7 +82,7 @@ class Flame:
 
     transforms: list[Transform]
     palette: types.Colorizer
-    camera: types.AffineTransform = types.IdentityAffine
+    camera: types.AffineTransform = dataclasses.field(default_factory = lambda: types.IdentityAffine)
     total_weight: float = dataclasses.field(init=False, default=0)
 
     def __post_init__(self):
@@ -141,7 +139,7 @@ class Flame:
                         raise Exception("All members of seeds_in must be int or State")
                     seed, cx = prng.rand_uniform(seed)
                     seed, cy = prng.rand_uniform(seed)
-                    states.append(State((cx, cy), seed))
+                    states.append(State(np.array((cx, cy)), seed))
             elif isinstance(seeds_in[0], State):
                 for seed in seeds_in:
                     if not isinstance(seed, State):
@@ -153,7 +151,7 @@ class Flame:
                 seed = seed_base + i
                 seed, cx = prng.rand_uniform(seed)
                 seed, cy = prng.rand_uniform(seed)
-                states.append(State((cx, cy), seed))
+                states.append(State(np.array((cx, cy)), seed))
         grid = np.zeros(size)
         self.iterate_steps(states, None, skip)
         no_skip = iters - skip

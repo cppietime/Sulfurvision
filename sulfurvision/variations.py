@@ -41,8 +41,8 @@ class Variation:
         )
 
     @staticmethod
-    def as_weights(weights_dict: dict[str, float]) -> list[float]:
-        weights = [0.0] * len(Variation.variations)
+    def as_weights(weights_dict: dict[str, float]) -> types.ParamsList:
+        weights = np.zeros(len(Variation.variations))
         total = sum(weights_dict.values())
         if total == 0:
             return weights
@@ -51,8 +51,8 @@ class Variation:
         return weights
 
     @staticmethod
-    def as_params(params_dict: dict[str, list[float]]) -> list[float]:
-        params = [0.0] * Variation.param_counter
+    def as_params(params_dict: dict[str, list[float]]) -> types.ParamsList:
+        params = np.zeros(Variation.param_counter)
         for name, vals in params_dict.items():
             base = Variation.variations[Variation.variations_map[name]].params_base
             for i, val in enumerate(vals):
@@ -81,25 +81,25 @@ def variation_linear(
 def variation_sinusoidal(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
-    return (np.sin(xy[0]), np.sin(xy[1])), seed
+    return np.sin(xy), seed
 
 
 @WrapVariation()
 def variation_spherical(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
-    r_recip = 1 / (xy[0] ** 2 + xy[1] ** 2)
-    return (xy[0] * r_recip, xy[1] * r_recip), seed
+    r_recip = 1 / (xy ** 2).sum()
+    return xy * r_recip, seed
 
 
 @WrapVariation()
 def variation_swirl(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
-    rsq = xy[0] ** 2 + xy[1] ** 2
+    rsq = (xy ** 2).sum()
     sin = np.sin(rsq)
     cos = np.cos(rsq)
-    return (xy[0] * sin - xy[1] * cos, xy[0] * cos + xy[1] * sin), seed
+    return np.array((xy[0] * sin - xy[1] * cos, xy[0] * cos + xy[1] * sin)), seed
 
 
 @WrapVariation()
@@ -107,10 +107,10 @@ def variation_horseshoe(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
     r_recip = 1 / np.hypot(*xy)
-    return (
+    return np.array((
         (xy[0] - xy[1]) * (xy[0] + xy[1]) * r_recip,
         2 * r_recip * xy[0] * xy[1],
-    ), seed
+    )), seed
 
 
 @WrapVariation()
@@ -119,7 +119,7 @@ def variation_polar(
 ):
     theta = np.atan2(*xy)
     r = np.hypot(*xy)
-    return (theta / np.pi, r - 1), seed
+    return np.array((theta / np.pi, r - 1)), seed
 
 
 @WrapVariation()
@@ -128,7 +128,7 @@ def variation_handkerchief(
 ):
     r = np.hypot(*xy)
     theta = np.atan2(*xy)
-    return (r * np.sin(theta + r), r * np.cos(theta - r)), seed
+    return r * np.array((np.sin(theta + r), np.cos(theta - r))), seed
 
 
 @WrapVariation()
@@ -137,7 +137,7 @@ def variation_heart(
 ):
     r = np.hypot(*xy)
     theta = np.atan2(*xy)
-    return (r * np.sin(r * theta), -r * np.cos(r * theta)), seed
+    return r * np.array((np.sin(r * theta), -np.cos(r * theta))), seed
 
 
 @WrapVariation()
@@ -146,7 +146,7 @@ def variation_disc(
 ):
     r = np.hypot(*xy) * np.pi
     theta = np.atan2(*xy) / np.pi
-    return (theta * np.sin(r), theta * np.cos(r)), seed
+    return theta * np.array((np.sin(r), np.cos(r))), seed
 
 
 @WrapVariation()
@@ -155,7 +155,7 @@ def variation_spiral(
 ):
     r = np.hypot(*xy)
     theta = np.atan2(*xy)
-    return ((np.cos(theta) + np.sin(r)) / r, (np.sin(theta) - np.cos(r)) / 2), seed
+    return np.array(((np.cos(theta) + np.sin(r)) / r, (np.sin(theta) - np.cos(r)) / 2)), seed
 
 
 @WrapVariation()
@@ -164,7 +164,7 @@ def variaton_hyperbolic(
 ):
     r = np.hypot(*xy)
     theta = np.atan2(*xy)
-    return (np.sin(theta) / r, r * np.cos(theta)), seed
+    return np.array((np.sin(theta) / r, r * np.cos(theta))), seed
 
 
 @WrapVariation()
@@ -173,7 +173,7 @@ def variation_diamond(
 ):
     r = np.hypot(*xy)
     theta = np.atan2(*xy)
-    return (np.sin(theta) * np.cos(r), np.cos(theta) * np.sin(r)), seed
+    return np.array((np.sin(theta) * np.cos(r), np.cos(theta) * np.sin(r))), seed
 
 
 @WrapVariation()
@@ -184,7 +184,7 @@ def variation_ex(
     theta = np.atan2(*xy)
     p0 = np.sin(theta + r) ** 3
     p1 = np.cos(theta - r) ** 3
-    return (r * (p0 + p1), r * (p0 - p1)), seed
+    return r * np.array(((p0 + p1), (p0 - p1))), seed
 
 
 @WrapVariation()
@@ -195,7 +195,7 @@ def variation_julia(
     h_theta = np.atan2(*xy) / 2
     new_seed = prng.rand_u32(seed)
     w = np.pi if (new_seed & 1) else 0
-    return (sqrt_r * np.cos(h_theta + w), sqrt_r * np.sin(h_theta + w)), new_seed
+    return sqrt_r * np.array((np.cos(h_theta + w),  np.sin(h_theta + w))), new_seed
 
 
 @WrapVariation()
@@ -206,11 +206,11 @@ def variation_bent(
     if x >= 0 and y >= 0:
         return xy, seed
     elif y >= 0:
-        return (x * 2, y), seed
+        return np.array((x * 2, y)), seed
     elif x >= 0:
-        return (x, y / 2), seed
+        return np.array((x, y / 2)), seed
     else:
-        return (x * 2, y / 2), seed
+        return np.array((x * 2, y / 2)), seed
 
 
 @WrapVariation()
@@ -219,7 +219,11 @@ def variation_waves(
 ):
     x, y = xy
     _, b, c, _, e, f = affine
-    return (x + b * np.sin(y / c**2), y + e * np.sin(x / f**2)), seed
+    if abs(c) < 1e-9:
+        c = 1
+    if abs(f) < 1e-9:
+        f = 1
+    return np.array((x + b * np.sin(y / c**2), y + e * np.sin(x / f**2))), seed
 
 
 @WrapVariation()
@@ -227,7 +231,7 @@ def variation_fisheye(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
     r = np.hypot(*xy) + 1
-    return (2 * xy[1] / r, 2 * xy[0] / r), seed
+    return 2 / r * xy[::-1], seed
 
 
 @WrapVariation()
@@ -235,8 +239,8 @@ def variation_popcorn(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
     x, y = xy
-    a, b, c, d, e, f = affine
-    return (x + c * np.sin(np.tan(3 * y), y + f * np.sin(np.tan(3 * x)))), seed
+    _, _, c, _, _, f = affine
+    return np.array((x + c * np.sin(np.tan(3 * y), y + f * np.sin(np.tan(3 * x))))), seed
 
 
 @WrapVariation()
@@ -245,7 +249,7 @@ def variation_exponential(
 ):
     exp = np.exp(xy[0] - 1)
     piy = np.pi * xy[1]
-    return (exp * np.cos(piy), exp * np.sin(piy)), seed
+    return exp * np.array((np.cos(piy), np.sin(piy))), seed
 
 
 @WrapVariation()
@@ -255,7 +259,7 @@ def variation_power(
     theta = np.atan2(*xy)
     sinth = np.sin(theta)
     r = np.hypot(*xy) ** sinth
-    return (r * np.cos(theta), r * sinth), seed
+    return r * np.array((np.cos(theta), sinth)), seed
 
 
 @WrapVariation()
@@ -263,7 +267,7 @@ def variation_cosine(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
     pix = np.pi * xy[0]
-    return (np.cos(pix) * np.cosh(xy[1]), -np.sin(pix) * np.sinh(xy[1])), seed
+    return np.array((np.cos(pix) * np.cosh(xy[1]), -np.sin(pix) * np.sinh(xy[1]))), seed
 
 
 @WrapVariation()
@@ -272,9 +276,11 @@ def variation_rings(
 ):
     r = np.hypot(*xy)
     c = affine[2]
+    if abs(c) < 1e-9:
+        c = 1
     theta = np.atan2(*xy)
     factor = ((r + c * c) % (2 * c * c)) - c * c + r * (1 - c * c)
-    return (factor * np.cos(theta), factor * np.sin(theta)), seed
+    return factor * np.array((np.cos(theta), np.sin(theta))), seed
 
 
 @WrapVariation()
@@ -289,7 +295,7 @@ def variation_fan(
         arg = theta - t / 2
     else:
         arg = theta + t / 2
-    return (r * np.cos(arg), r * np.sin(arg)), seed
+    return r * np.array((np.cos(arg), np.sin(arg))), seed
 
 
 @WrapVariation(3)
@@ -301,17 +307,17 @@ def variation_blob(
     factor = r * (
         params[1] + (params[0] - params[1]) / 2 * (np.sin(params[3] * theta) + 1)
     )
-    return (factor * np.cos(theta), factor * np.sin(theta)), seed
+    return factor * np.array((np.cos(theta), np.sin(theta))), seed
 
 
 @WrapVariation(4)
 def variation_pdj(
     xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
 ):
-    return (
+    return np.array((
         np.sin(params[0] * xy[1]) - np.cos(params[1] * xy[0]),
         np.sin(params[2] * xy[0]) - np.cos(params[3] * xy[1]),
-    ), seed
+    )), seed
 
 
 # End of transformation definitions
