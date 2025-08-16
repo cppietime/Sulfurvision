@@ -19,10 +19,9 @@ particle_t apply_transform(
     return (particle_t){new_xy, seed, color};
 }
 
-// TODO: take in particle states, separate out into functions
 __kernel void flame_kernel(
     __global particle_t* particles,
-    __global uint* image,
+    __global uint* histogram,
     __constant transform_t* transforms,
     __constant float4* palette,
     __constant float* camera,
@@ -31,9 +30,11 @@ __kernel void flame_kernel(
     const uint skip_itrs,
     const uint2 image_size,
     const uint n_transforms,
-    const uint n_colors) {
+    const uint n_colors,
+    const uint supersampling) {
         size_t id = get_global_id(0);
         size_t n_seeds = get_global_size(0);
+        uint2 histogram_size = image_size * supersampling;
 
         __private particle_t particle = particles[id];
 
@@ -50,9 +51,9 @@ __kernel void flame_kernel(
                 float2 pixel = affine_transform(camera, particle.xy);
                 uint ux = (uint)pixel.x;
                 uint uy = (uint)pixel.y;
-                if (ux >= 0 && uy >= 0 && ux < image_size.x && uy < image_size.y) {
-                    uint pixel_id = ux + uy * image_size.x;
-                    __global uint* pixptr = image + pixel_id * 4;
+                if (ux >= 0 && uy >= 0 && ux < histogram_size.x && uy < histogram_size.y) {
+                    uint pixel_id = ux + uy * histogram_size.x;
+                    __global uint* pixptr = histogram + pixel_id * 4;
                     uchar4 rgba = sample_palette(palette, particle.color, n_colors);
                     atomic_add(pixptr + 0, rgba.r);
                     atomic_add(pixptr + 1, rgba.g);
@@ -63,9 +64,62 @@ __kernel void flame_kernel(
         }
 
         particles[id] = particle;
+}
 
+__kernel void downsample_kernel(
+    __global uint* histogram,
+    __global uint* image,
+    const uint2 image_size,
+    const uint supersampling
+    ){
+        size_t id = get_global_id(0);
+        size_t n_threads = get_global_size(0);
+        uint2 histogram_size = image_size * supersampling;
+        for (uint dest_pix = id; dest_pix < image_size.x * image_size.y; dest_pix += n_threads) {
+            uint4 sum = 0;
+            uint2 dest_xy = (uint2)(dest_pix % image_size.x, dest_pix / image_size.x);
+            for (uint dx = 0; dx < supersampling; dx++) {
+                for (uint dy = 0; dy < supersampling; dy++) {
+                    uint2 src_xy = dest_xy * supersampling + (uint2)(dx, dy);
+                    uint src_pix = src_xy.y * histogram_size.x + src_xy.x;
+                    sum.r += histogram[src_pix * 4 + 0];
+                    sum.g += histogram[src_pix * 4 + 1];
+                    sum.b += histogram[src_pix * 4 + 2];
+                    sum.a += histogram[src_pix * 4 + 3];
+                }
+            }
+            image[dest_pix * 4 + 0] = sum.r;
+            image[dest_pix * 4 + 1] = sum.g;
+            image[dest_pix * 4 + 2] = sum.b;
+            image[dest_pix * 4 + 3] = sum.a;
+        }
+}
+
+__kernel void rowmax_kernel(
+    __global uint* image,
+    __global uint* maxima,
+    const uint2 image_size){
+        size_t id = get_global_id(0);
+        size_t n_threads = get_global_size(0);
+        for (uint y = id; y < image_size.y; y += n_threads) {
+            uint maximum = 0;
+            for (uint x = 0 ; x < image_size.x; x++) {
+                uint index = y * image_size.x + x;
+                uint alpha = image[index * 4 + 3];
+                maximum = (alpha > maximum) ? alpha : maximum;
+            }
+            maxima[y] = maximum;
+        }
+}
+
+__kernel void tonemap_kernel(
+    __global uint* image,
+    const uint2 image_size){
         // TODO log-density, gamma, and vibrancy coloration, supersampling
-        for (uint i = id; i < image_size.x * image_size.y; i += n_seeds) {
+        // Tone mapping should probably be in its own kernel
+        size_t id = get_global_id(0);
+        size_t n_threads = get_global_size(0);
+        for (uint i = id; i < image_size.x * image_size.y; i += n_threads) {
             __global uint* pixptr = image + i * 4;
             float4 frgba = (float4)(pixptr[0], pixptr[1], pixptr[2], pixptr[3]);
             frgba = (fabs(frgba.a) < EPSILON) ? (float4)(0, 0, 0, 1) : (frgba / frgba.a);
