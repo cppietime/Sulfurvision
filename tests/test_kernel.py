@@ -4,12 +4,19 @@ import pyopencl as cl
 import pyopencl.array as clarray
 from pyopencl import cltypes
 
-from sulfurvision import pysulfur, variations
+from sulfurvision import prng, pysulfur, variations
 from sulfurvision.cl import bootstrap, krnl
+
+def rand_seed(base):
+    base, x = prng.rand_uniform(base)
+    base, y = prng.rand_uniform(base)
+    base, color = prng.rand_uniform(base)
+    return (cltypes.make_float2(x, y), base, color)
 
 def test_flame(ctx, device, q):
     krnl.define_types(device)
-    w = h = 1000
+    w = h = 200
+    # TODO: test each transform (at least one is broken)
     transforms = [
         pysulfur.Transform(
             variations.Variation.as_weights({
@@ -51,10 +58,13 @@ def test_flame(ctx, device, q):
     camera = clarray.to_device(q, np.array([w / 2, 0, w / 2, 0, h / 2, h / 2], np.float32))
     img_size = cltypes.make_uint2(w, h)
     n_seeds = 2000
+    particles = clarray.to_device(q, np.array([rand_seed(prng.lcg32_skip(12345, i << 8)) for i in range(n_seeds)], krnl.cl_types[krnl.particle_type_key]))
+    print(particles[0])
     prg = krnl.build_kernel(ctx, device)
     print(prg.kernel_names)
     krn = prg.flame_kernel
     krn(q, (n_seeds,), None,
+        particles.data,
         array.data,
         dev_transforms.data,
         palette.data,

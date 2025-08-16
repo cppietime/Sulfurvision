@@ -8,7 +8,8 @@ import pyopencl.tools as cltools
 from sulfurvision import pysulfur, variations
 
 cl_types = {}
-transform_type_key = 'transform'
+transform_type_key = 'transform_t'
+particle_type_key = 'particle_t'
 
 def transform_to_cl(transforms, q):
     if transform_type_key not in cl_types:
@@ -24,6 +25,12 @@ def transform_to_cl(transforms, q):
         host_transforms[i]['color_speed'] = transform.color_speed
     return clarray.to_device(q, host_transforms)
 
+def register_type(device, name, nptype):
+    host_type, dev_type = cltools.match_dtype_to_c_struct(device, name, nptype)
+    host_type = cltools.get_or_register_dtype(name, host_type)
+    cl_types[name] = host_type
+    return dev_type
+
 def define_types(device):
     np_transform = np.dtype([
         ('weights', f'{len(variations.Variation.variations)}f4'),
@@ -33,10 +40,20 @@ def define_types(device):
         ('color', 'f4'),
         ('color_speed', 'f4')
         ])
-    host_transform, dev_transform = cltools.match_dtype_to_c_struct(device, "transform_t", np_transform)
-    host_transform = cltools.get_or_register_dtype("transform_t", host_transform)
-    cl_types[transform_type_key] = host_transform
-    return dev_transform
+    dev_transform = register_type(device, transform_type_key, np_transform)
+
+    np_particle = np.dtype([
+        ('xy', clarray.vec.float2),
+        ('seed', 'u4'),
+        ('color', 'f4')
+    ])
+    dev_particle = register_type(device, particle_type_key, np_particle)
+
+    srcs = [
+        dev_transform,
+        dev_particle
+    ]
+    return '\n'.join(srcs)
     
 
 def combine_source(device):

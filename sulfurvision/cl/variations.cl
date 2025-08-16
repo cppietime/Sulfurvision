@@ -199,18 +199,15 @@ VARIATION(perspective) {
 }
 
 VARIATION(noise) {
-    *seed = lcg32(*seed);
-    float phi1 = (float)(*seed) / MASK32;
-    *seed = lcg32(*seed);
-    float phi2 = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi1);
+    LCG32_UNIFORM(*seed, phi2);
     float c;
     float s = sincos(2 * M_PI_F * phi2, &c);
     return phi1 * (float2)(xyrt.x * c, xyrt.y * s);
 }
 
 VARIATION(juliaN) {
-    *seed = lcg32(*seed);
-    float phi = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi);
     float p3 = (int)(fabs(params[0]) * phi);
     float t = (M_PI_2_F - xyrt.w - 2 * M_PI * p3) / params[0];
     float c;
@@ -219,8 +216,7 @@ VARIATION(juliaN) {
 }
 
 VARIATION(juliaScope) {
-    *seed = lcg32(*seed);
-    float phi = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi);
     float p3 = (int)(fabs(params[0]) * phi);
     *seed = lcg32(*seed);
     float delta = ((float)(*seed) / MASK32 > 0.5) ? 1 : -1;
@@ -231,10 +227,8 @@ VARIATION(juliaScope) {
 }
 
 VARIATION(blur) {
-    *seed = lcg32(*seed);
-    float phi1 = (float)(*seed) / MASK32;
-    *seed = lcg32(*seed);
-    float phi2 = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi1);
+    LCG32_UNIFORM(*seed, phi2);
     float c;
     float s = sincos(M_PI_F * 2 * phi2, &c);
     return phi1 * (float2)(c, s);
@@ -274,16 +268,13 @@ VARIATION(radialBlur) {
     float t3 = phi * cp1 - 1;
     float ct2;
     float st2 = sincos(t2, &ct2);
-    return (float2)(xyrt.z * ct2 + t3 * xyrt.x, xyrt.z * st2 + t3 * xyrt.y) / weight;
+    return (float2)(xyrt.z * ct2 + t3 * xyrt.x, xyrt.z * st2 + t3 * xyrt.y) / (fabs(weight) > EPSILON ? weight : 1);
 }
 
 VARIATION(pie) {
-    *seed = lcg32(*seed);
-    float phi1 = (float)(*seed) / MASK32;
-    *seed = lcg32(*seed);
-    float phi2 = (float)(*seed) / MASK32;
-    *seed = lcg32(*seed);
-    float phi3 = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi1);
+    LCG32_UNIFORM(*seed, phi2);
+    LCG32_UNIFORM(*seed, phi3);
     float t1 = (int)(phi1 * params[0] + .5);
     float t2 = params[1] + M_PI_2_F / params[0] * (t1 + phi2 * params[2]);
     float c;
@@ -314,8 +305,7 @@ VARIATION(rectangles) {
 }
 
 VARIATION(arch) {
-    *seed = lcg32(*seed);
-    float phi = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi);
     float c;
     float s = sincos(phi * M_PI_F * weight, &c);
     return (float2)(s, s * s / c);
@@ -326,34 +316,30 @@ VARIATION(tangent) {
 }
 
 VARIATION(square) {
-    *seed = lcg32(*seed);
-    float phi1 = (float)(*seed) / MASK32;
-    *seed = lcg32(*seed);
-    float phi2 = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi1);
+    LCG32_UNIFORM(*seed, phi2);
     return (float2)(phi1 - 0.5, phi2 - 0.5);
 }
 
 VARIATION(rays) {
-    *seed = lcg32(*seed);
-    float phi = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi);
     return weight * tan(phi * M_PI_F * weight) / (xyrt.z * xyrt.z) * (float2)(cos(xyrt.x), sin(xyrt.y));
 }
 
 VARIATION(blade) {
-    *seed = lcg32(*seed);
-    float phi = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi);
     float c;
     float s = sincos(phi * xyrt.z * weight, &c);
     return xyrt.x * (float2)(c + s, c - s);
 }
 
 VARIATION(secant) {
+    weight = (fabs(weight) > EPSILON) ? weight : 1;
     return (float2)(xyrt.x, 1 / (weight * cos(weight * xyrt.z)));
 }
 
 VARIATION(twintrain) {
-    *seed = lcg32(*seed);
-    float phi = (float)(*seed) / MASK32;
+    LCG32_UNIFORM(*seed, phi);
     float c;
     float s = sincos(phi * xyrt.z * weight, &c);
     float t = log10(s * s) + c;
@@ -364,3 +350,5 @@ VARIATION(cross) {
     float z = xyrt.x * xyrt.x - xyrt.y * xyrt.y;
     return sqrt(1 / (z * z)) * xyrt.xy;
 }
+
+#undef VARIATION
