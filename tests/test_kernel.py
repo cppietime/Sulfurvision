@@ -2,28 +2,84 @@ import numpy as np
 from PIL import Image
 import pyopencl as cl
 import pyopencl.array as clarray
+from pyopencl import cltypes
 
+from sulfurvision import pysulfur, variations
 from sulfurvision.cl import bootstrap, krnl
 
-def test_rand(ctx, q):
-    w = h = 100
-    array = clarray.empty(q, (w, h), np.float32)
-    prg = krnl.build_kernel(ctx)
+def test_flame(ctx, device, q):
+    krnl.define_types(device)
+    w = h = 1000
+    transforms = [
+        pysulfur.Transform(
+            variations.Variation.as_weights({
+                variations.variation_linear.name: 1
+            }),
+            variations.Variation.as_params({}),
+            np.array([0.5, 0, 0, 0, 0.5, 0]),
+            1/3,
+            0,
+        ),
+        pysulfur.Transform(
+            variations.Variation.as_weights({
+                variations.variation_linear.name: 1,
+                variations.variation_polar.name: 0,
+            }),
+            variations.Variation.as_params({}),
+            np.array([0.5, 0, 0.5, 0, 0.5, 0]),
+            1/3,
+            1,
+        ),
+        pysulfur.Transform(
+            variations.Variation.as_weights({
+                variations.variation_linear.name: 0.5,
+                variations.variation_horseshoe.name: 0.5,
+            }),
+            variations.Variation.as_params({}),
+            np.array([0.5, 0, 0, 0, 0.75, -0.25]),
+            1/3,
+            2,
+        ),
+    ]
+    dev_transforms = krnl.transform_to_cl(transforms, q)
+    array = clarray.zeros(q, (h, w, 4), np.uint32)
+    palette = clarray.to_device(q, np.array([
+        cltypes.make_float4(255, 0, 0, 1),
+        cltypes.make_float4(0, 255, 0, 1),
+        cltypes.make_float4(0, 0, 255, 1),
+    ], cltypes.float4))
+    camera = clarray.to_device(q, np.array([w / 2, 0, w / 2, 0, h / 2, h / 2], np.float32))
+    img_size = cltypes.make_uint2(w, h)
+    n_seeds = 2000
+    prg = krnl.build_kernel(ctx, device)
     print(prg.kernel_names)
-    krn = prg.test_kernel
-    krn(q, (w * h,), None, array.data, np.float32(w), np.float32(h))
+    krn = prg.flame_kernel
+    krn(q, (n_seeds,), None,
+        array.data,
+        dev_transforms.data,
+        palette.data,
+        camera.data,
+        np.uint32(123456),
+        np.uint32(100),
+        np.uint32(10),
+        img_size.data,
+        np.uint32(3),
+        np.uint32(3)
+        )
     result = array.get()
-    img = Image.new('L', (w, h))
+    img = Image.new('RGB', (w, h))
     for y in range(h):
         for x in range(w):
-            pix = int(abs(result[x, y]) * 255)
-            img.putpixel((x, y), pix)
+            pix = result[x, y]
+            img.putpixel((x, y), tuple(pix[:3]))
     img.save('test_cl.png')
 
 def main():
     ctx = bootstrap.create_ctx()
-    q = cl.CommandQueue(ctx)
-    test_rand(ctx, q)
+    device = bootstrap.pick_device(ctx)
+    q = cl.CommandQueue(ctx, device)
+    print('Created queue')
+    test_flame(ctx, device, q)
 
 if __name__ == '__main__':
     main()

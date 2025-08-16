@@ -319,5 +319,148 @@ def variation_pdj(
         np.sin(params[2] * xy[0]) - np.cos(params[3] * xy[1]),
     )), seed
 
+@WrapVariation(2)
+def variation_fan2(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(1)
+def variation_rings2(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_eyefish(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+WrapVariation()
+def variation_bubble(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+WrapVariation()
+def variation_cylinder(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(2)
+def variation_perspective(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_noise(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(3)
+def variation_juliaN(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(3)
+def variation_juliaScope(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation
+def variation_blur(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_gaussian(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(1)
+def variation_radialBlur(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(3)
+def variation_pie(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(4)
+def variation_ngon(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(2)
+def variation_curl(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation(2)
+def variation_rectangles(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_arch(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_tangent(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_square(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_rays(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_blade(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_secant(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation()
+def variation_twintrain(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
+
+@WrapVariation
+def variation_cross(
+    xy: types.Coord, affine: types.AffineTransform, params: types.ParamsList, seed: int
+):
+    ...
 
 # End of transformation definitions

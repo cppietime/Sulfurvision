@@ -33,7 +33,6 @@ uint lcg_skip(uint seed, uint skip) {
     ulong new_seed = (a_to_n * seed) & 0xFFFFFFFF;
     new_seed += INCREMENT * (((a_to_n - 1) % ((a_minus_one) << 32)) / a_minus_one);
     return new_seed & 0xFFFFFFFF;
-
 }
 
 __kernel void test_kernel(__global float* img, const int width, const int height) {

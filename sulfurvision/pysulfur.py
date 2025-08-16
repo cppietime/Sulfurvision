@@ -146,7 +146,7 @@ class Flame:
         else:
             raise Exception("Error calculating weights")
 
-    def iterate_step(self, states: list[State], grid: types.ImageGrid | None) -> None:
+    def iterate_step(self, states: list[State], grid: typing.Optional[types.ImageGrid]) -> None:
         """Performs one iteration on each state in a list, and returns the list of logged events.
         Modifies states to the new states, but does not modify any State objects passed within the list.
         """
@@ -169,7 +169,7 @@ class Flame:
     def plot(
         self,
         size: tuple[int, int, int],
-        seeds_in: list[int] | list[State] | tuple[int, int],
+        seeds_in: typing.Union[list[int], list[State], tuple[int, int]],
         iters: int,
         skip: int = 20,
     ) -> types.ImageGrid:
