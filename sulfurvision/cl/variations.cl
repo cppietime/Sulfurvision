@@ -209,7 +209,7 @@ VARIATION(noise) {
 VARIATION(juliaN) {
     LCG32_UNIFORM(*seed, phi);
     float p3 = (int)(fabs(params[0]) * phi);
-    float t = (M_PI_2_F - xyrt.w - 2 * M_PI * p3) / params[0];
+    float t = (M_PI_2_F - xyrt.w + 2 * M_PI * p3) / params[0];
     float c;
     float s = sincos(t, &c);
     return pow(xyrt.z, params[1] / params[0]) * (float2)(c, s);
@@ -262,6 +262,7 @@ VARIATION(radialBlur) {
     phi += (float)(*seed) / MASK32;
     *seed = lcg32(*seed);
     phi += (float)(*seed) / MASK32;
+    phi *= weight;
     float cp1;
     float sp1 = sincos(p1, &cp1);
     float t2 = M_PI_2_F - xyrt.w + phi * sp1;
@@ -299,8 +300,8 @@ VARIATION(curl) {
 
 VARIATION(rectangles) {
     return (float2)(
-        2 * floor(xyrt.x / params[0] + 1) * params[0] - xyrt.x,
-        2 * floor(xyrt.y / params[1] + 1) * params[1] - xyrt.y
+        2 * (floor(xyrt.x / params[0]) + 1) * params[0] - xyrt.x,
+        2 * (floor(xyrt.y / params[1]) + 1) * params[1] - xyrt.y
     );
 }
 

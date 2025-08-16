@@ -38,3 +38,13 @@ OpenCL kernels IO:
 
 OpenCL Variation function signature:
 `float2 variation_NAME(float4 xyrt, __global uint* seed, __constant float* params, __constant float* affine);`
+
+Possible problem variatons:
+
+- JuliaN
+- JuliaScope
+- Rectangles
+- Fan2
+- Cosine
+- Fisheye
+- Ngon

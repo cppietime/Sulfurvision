@@ -52,7 +52,7 @@ class Variation:
 
     @staticmethod
     def as_params(params_dict: dict[str, list[float]]) -> types.ParamsList:
-        params = np.full(Variation.param_counter, 1)
+        params = np.full(Variation.param_counter, 0.6)
         for name, vals in params_dict.items():
             base = Variation.variations[Variation.variations_map[name]].params_base
             for i, val in enumerate(vals):

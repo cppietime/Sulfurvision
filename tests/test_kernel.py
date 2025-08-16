@@ -13,10 +13,11 @@ def rand_seed(base):
     base, color = prng.rand_uniform(base)
     return (cltypes.make_float2(x, y), base, color)
 
-def test_flame(ctx, device, q):
-    krnl.define_types(device)
+def test_transform(ctx, device, q, krn, transform_name, array):
     w = h = 200
-    # TODO: test each transform (at least one is broken)
+    all_weights = np.full(len(variations.Variation.variations), 1, np.float32)
+    all_weights[variations.Variation.variations_map[transform_name]] = 0
+    all_weights /= all_weights.sum()
     transforms = [
         pysulfur.Transform(
             variations.Variation.as_weights({
@@ -24,32 +25,33 @@ def test_flame(ctx, device, q):
             }),
             variations.Variation.as_params({}),
             np.array([0.5, 0, 0, 0, 0.5, 0]),
-            1/3,
+            1/10,
             0,
         ),
         pysulfur.Transform(
             variations.Variation.as_weights({
                 variations.variation_linear.name: 1,
-                variations.variation_polar.name: 0,
             }),
             variations.Variation.as_params({}),
             np.array([0.5, 0, 0.5, 0, 0.5, 0]),
-            1/3,
+            1/10,
             1,
         ),
         pysulfur.Transform(
-            variations.Variation.as_weights({
-                variations.variation_linear.name: 0.5,
-                variations.variation_horseshoe.name: 0.5,
+            all_weights,
+            variations.Variation.as_params({
+                variations.variation_juliaN.name: [2, 0.75],
+                variations.variation_juliaScope.name: [2, 0.75],
+                variations.variation_ngon.name: [2, 4, 4, 0.5],
+                variations.variation_rectangles.name: [1, -0.3],
+                variations.variation_radialBlur.name: [0.7],
             }),
-            variations.Variation.as_params({}),
-            np.array([0.5, 0, 0, 0, 0.75, -0.25]),
-            1/3,
+            np.array([0.5, 0, 0.15, 0, 0.75, -0.25]),
+            4/5,
             2,
         ),
     ]
     dev_transforms = krnl.transform_to_cl(transforms, q)
-    array = clarray.zeros(q, (h, w, 4), np.uint32)
     palette = clarray.to_device(q, np.array([
         cltypes.make_float4(255, 0, 0, 1),
         cltypes.make_float4(0, 255, 0, 1),
@@ -59,10 +61,7 @@ def test_flame(ctx, device, q):
     img_size = cltypes.make_uint2(w, h)
     n_seeds = 2000
     particles = clarray.to_device(q, np.array([rand_seed(prng.lcg32_skip(12345, i << 8)) for i in range(n_seeds)], krnl.cl_types[krnl.particle_type_key]))
-    print(particles[0])
-    prg = krnl.build_kernel(ctx, device)
-    print(prg.kernel_names)
-    krn = prg.flame_kernel
+    array.fill(np.float32(0))
     krn(q, (n_seeds,), None,
         particles.data,
         array.data,
@@ -82,7 +81,15 @@ def test_flame(ctx, device, q):
         for x in range(w):
             pix = result[x, y]
             img.putpixel((x, y), tuple(pix[:3]))
-    img.save('test_cl.png')
+    img.save(f'{transform_name}.png')
+
+def test_flame(ctx, device, q):
+    krnl.define_types(device)
+    w = h = 200
+    array = clarray.zeros(q, (h, w, 4), np.uint32)
+    krn = krnl.build_kernel(ctx, device).flame_kernel
+    for variation in variations.Variation.variations:
+        test_transform(ctx, device, q, krn, variation.name, array)
 
 def main():
     ctx = bootstrap.create_ctx()

@@ -82,7 +82,7 @@ def combine_source(device):
     for i, variation in enumerate(variations.Variation.variations):
         if f'VARIATION({variation.name[len("variation_"):]})' not in srcs[-1]:
             continue
-        variations_srcs.append(f'''            if (fabs(transform->weights[{i}]) > EPSILON) new_xy += transform->weights[{i}] * {variation.name}(xyrt, &seed, &(transform->params[{variation.params_base}]), transform->affine, transform->weights[{i}]);''')
+        variations_srcs.append(f'''            if (fabs(transform->weights[{i}]) > EPSILON) {{ new_xy += transform->weights[{i}] * {variation.name}(xyrt, &seed, &(transform->params[{variation.params_base}]), transform->affine, transform->weights[{i}]); }}''')
     kernel_src = kernel_src.replace('@@VARIATIONS@@', '\n'.join(variations_srcs))
     srcs.append(kernel_src)
     src = '\n'.join(srcs)
