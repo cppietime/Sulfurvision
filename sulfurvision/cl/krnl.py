@@ -25,6 +25,20 @@ def transform_to_cl(transforms, q):
         host_transforms[i]['color_speed'] = transform.color_speed
     return clarray.to_device(q, host_transforms)
 
+def transform_into_cl(transforms, array):
+    if transform_type_key not in cl_types:
+        raise Exception('Types have not yet been defined')
+    host_transform_type = cl_types[transform_type_key]
+    host_transforms = np.empty(len(transforms), host_transform_type)
+    for i, transform in enumerate(transforms):
+        host_transforms[i]['weights'] = transform.weights
+        host_transforms[i]['params'] = transform.params
+        host_transforms[i]['affine'] = transform.affine
+        host_transforms[i]['probability'] = transform.probability
+        host_transforms[i]['color'] = transform.color
+        host_transforms[i]['color_speed'] = transform.color_speed
+    array.set(host_transforms)
+
 def register_type(device, name, nptype):
     host_type, dev_type = cltools.match_dtype_to_c_struct(device, name, nptype)
     host_type = cltools.get_or_register_dtype(name, host_type)

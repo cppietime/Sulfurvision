@@ -88,7 +88,12 @@ class Transform:
     def read_json(jsn: str) -> typing.Union[list['Transform'], 'Transform']:
         d = json.loads(jsn)
         if isinstance(d, list):
-            return list(map(Transform.from_dict, d))
+            transforms = list(map(Transform.from_dict, d))
+            total_prob = sum(map(lambda x: x.probability, transforms))
+            if abs(total_prob) > 1e-9:
+                for transform in transforms:
+                    transform.probability /= total_prob
+            return transforms
         return Transform.from_dict(d)
 
     @staticmethod

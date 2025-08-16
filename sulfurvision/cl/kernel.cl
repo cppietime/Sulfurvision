@@ -25,7 +25,6 @@ __kernel void flame_kernel(
     __constant transform_t* transforms,
     __constant float4* palette,
     __constant float* camera,
-    const uint base_seed,
     const uint n_itrs,
     const uint skip_itrs,
     const uint2 image_size,
@@ -41,7 +40,8 @@ __kernel void flame_kernel(
         for (uint i = 0; i < n_itrs; i++) {
             LCG32_UNIFORM(particle.seed, p);
             uint t_choice;
-            for (t_choice = 0; p >= 0; p -= transforms[t_choice++].probability);
+            for (t_choice = 0; p > 0 && t_choice < n_transforms; p -= transforms[t_choice++].probability);
+            t_choice = min(t_choice, n_transforms);
             __constant transform_t* transform = transforms + t_choice - 1;
 
             particle = apply_transform(transform, particle);
@@ -88,6 +88,7 @@ __kernel void downsample_kernel(
                     sum.a += histogram[src_pix * 4 + 3];
                 }
             }
+            //sum /= supersampling * supersampling;
             image[dest_pix * 4 + 0] = sum.r;
             image[dest_pix * 4 + 1] = sum.g;
             image[dest_pix * 4 + 2] = sum.b;
@@ -114,15 +115,27 @@ __kernel void rowmax_kernel(
 
 __kernel void tonemap_kernel(
     __global uint* image,
-    const uint2 image_size){
-        // TODO log-density, gamma, and vibrancy coloration, supersampling
-        // Tone mapping should probably be in its own kernel
+    const uint2 image_size,
+    const float brightness,
+    const float gamma,
+    const float vibrancy,
+    const uint max_alpha,
+    const uint mode){
         size_t id = get_global_id(0);
         size_t n_threads = get_global_size(0);
         for (uint i = id; i < image_size.x * image_size.y; i += n_threads) {
             __global uint* pixptr = image + i * 4;
             float4 frgba = (float4)(pixptr[0], pixptr[1], pixptr[2], pixptr[3]);
-            frgba = (fabs(frgba.a) < EPSILON) ? (float4)(0, 0, 0, 1) : (frgba / frgba.a);
+            // Log-log scale
+            if (mode & TONEMAP_MODE_LOG) {
+                //frgba.a = frgba.a / log10(1 + brightness * frgba.a / max_alpha);
+                frgba *= log10(1 + brightness * frgba.a / max_alpha) / frgba.a;
+            } else {
+                frgba = (fabs(frgba.a) < EPSILON) ? (float4)(0, 0, 0, 1) : (frgba / frgba.a);
+            }
+            //frgba *= pow(frgba.a, gamma) / frgba.a;
+            frgba = vibrancy * frgba * pow(frgba.a, gamma) / frgba.a + (1 - vibrancy) * 256 * pow(frgba / 256, gamma);
+            frgba = clamp(frgba, 0, 255);
             pixptr[0] = frgba.r;
             pixptr[1] = frgba.g;
             pixptr[2] = frgba.b;
