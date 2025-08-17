@@ -4,7 +4,7 @@ import pyopencl as cl
 import pyopencl.array as clarray
 from pyopencl import cltypes
 
-from sulfurvision import prng
+from sulfurvision import prng, pysulfur, types
 from sulfurvision.cl import bootstrap, krnl
 
 def rand_particle(seed):
@@ -14,43 +14,56 @@ def rand_particle(seed):
     return (cltypes.make_float2(x, y), seed, color)
 
 class Renderer:
-    def __init__(self, w, h, supersample, n_particles, n_colors, n_variations):
-        
-        self.ctx = bootstrap.create_ctx()
-        self.device = bootstrap.pick_device(self.ctx)
-        self.queue = cl.CommandQueue(self.ctx, self.device)
-        self.program = krnl.build_kernel(self.ctx, self.device)
-        self.kernels = [
-            self.program.flame_kernel,
-            self.program.downsample_kernel,
-            self.program.rowmax_kernel,
-            self.program.tonemap_kernel
-        ]
-        self.size = (w, h)
+    """Utility class for rendering flames."""
+    _ctx = None
+    _device = None
+    _queue = None
+    _program = None
+    _kernels = None
+
+    @classmethod
+    def _init_cl(cls):
+        """Helper class method to initialize global CL objects."""
+        if cls._ctx is None:
+            cls._ctx = bootstrap.create_ctx()
+        if cls._device is None:
+            cls._device = bootstrap.pick_device(cls._ctx)
+        if cls._queue is None:
+            cls._queue = cl.CommandQueue(cls._ctx, cls._device)
+        if cls._program is None:
+            cls._program = krnl.build_kernel(cls._ctx, cls._device)
+        if cls._kernels is None:
+            cls._kernels = [
+                cls._program.flame_kernel,
+                cls._program.downsample_kernel,
+                cls._program.rowmax_kernel,
+                cls._program.tonemap_kernel,
+            ]
+
+    def __init__(self, w: int, h: int, supersample: int, n_particles: int, n_colors: int, n_variations: int, seed: int = 12345):
+        Renderer._init_cl()
+        self.w = w
+        self.h = h
+        self.img_size = cltypes.make_uint2(w, h)
         self.supersample = supersample
         self.n_particles = n_particles
         self.n_colors = n_colors
         self.n_variations = n_variations
-        self.pixel_array = clarray.zeros(self.queue, w * h * 4, np.uint32)
-        self.histogram = clarray.zeros(self.queue, w * h * 4 * supersample * supersample, np.uint32)
-        self.particles = clarray.empty(self.queue, (n_particles,), krnl.cl_types[krnl.particle_type_key])
-        self.palette = clarray.empty(self.queue, n_colors, cltypes.float4)
-        self.camera = clarray.zeros(self.queue, 6, np.float32)
-        self.variations = clarray.empty(self.queue, (n_variations,), krnl.cl_types[krnl.transform_type_key])
-    
-    def render(self, camera, transforms, palette, iters, skip, vibrancy=1, gamma=0.8, brightness=20):
-        self.particles.set(np.array([
-            rand_particle(i) for i in range(self.n_particles)
-            ], dtype=krnl.cl_types[krnl.particle_type_key]))
-        self.histogram.fill(0)
-        self.pixel_array.fill(0)
+        self.seed = seed
+        self.pixel_array = clarray.zeros(Renderer._queue, w * h * 4, np.uint32)
+        self.histogram = clarray.zeros(Renderer._queue, w * h * 4 * supersample * supersample, np.uint32)
+        self.row_ctr = clarray.zeros(Renderer._queue, h, np.uint32)
+        self.particles = clarray.empty(Renderer._queue, (n_particles,), krnl.cl_types[krnl.particle_type_key])
+        self.palette = clarray.empty(Renderer._queue, n_colors, cltypes.float4)
+        self.camera = clarray.zeros(Renderer._queue, 6, np.float32)
+        self.variations = clarray.empty(Renderer._queue, (n_variations,), krnl.cl_types[krnl.transform_type_key])
+
+    def chaos_game(self, camera: types.AffineTransform, transforms: list[pysulfur.Transform], palette: types.Palette, iters: int, skip: int):
+        """Run the chaos game, and do nothing else that is not necessary for it."""
         self.palette.set(np.asarray([cltypes.make_float4(*color) for color in palette], cltypes.float4))
-        print(type(self.palette))
-        print(self.palette.dtype)
-        print(self.palette.shape)
         self.camera.set(np.asarray(camera, np.float32))
         krnl.transform_into_cl(transforms, self.variations)
-        self.kernels[0](self.queue, (self.n_particles,), None,
+        Renderer._kernels[0](Renderer._queue, (self.n_particles,), None,
                         self.particles.data,
                         self.histogram.data,
                         self.variations.data,
@@ -58,30 +71,38 @@ class Renderer:
                         self.camera.data,
                         np.uint32(iters),
                         np.uint32(skip),
-                        cltypes.make_uint2(*self.size),
+                        self.img_size,
                         np.uint32(self.n_variations),
                         np.uint32(self.n_colors),
                         np.uint32(self.supersample)
                         ).wait()
+    
+    def image(self, vibrancy: float = 1, gamma: float = 0.8, brightness: float = 20) -> Image:
+        """Return an image from the current chaos game state, using the following steps:
+        - Downsample, if necessary,
+        - Calculate the maximum alpha,
+        - Perform tonemapping,
+        - Return a PIL Image RGB object
+        """
+        self.pixel_array.fill(0)
         if self.supersample > 1:
-            self.kernels[1](self.queue, (self.size[0] * self.size[1],), None,
+            Renderer._kernels[1](Renderer._queue, (self.w * self.h,), None,
                             self.histogram.data,
                             self.pixel_array.data,
-                            cltypes.make_uint2(*self.size),
+                            self.img_size,
                             np.uint32(self.supersample)
                             ).wait()
         else:
             self.pixel_array.set(self.histogram.get())
-        self.kernels[2](self.queue, (self.size[1],), None,
+        Renderer._kernels[2](Renderer._queue, (self.w,), None,
                         self.pixel_array.data,
-                        self.histogram.data,
-                        cltypes.make_uint2(*self.size)
+                        self.row_ctr.data,
+                        self.img_size
                         ).wait()
-        maxima = self.histogram.get()[:self.size[1]]
-        maximum = maxima.max()
-        self.kernels[3](self.queue, (self.size[0] * self.size[1],), None,
+        maximum = self.row_ctr.get().max()
+        Renderer._kernels[3](Renderer._queue, (self.w * self.h,), None,
                         self.pixel_array.data,
-                        cltypes.make_uint2(*self.size),
+                        self.img_size,
                         np.float32(brightness),
                         np.float32(gamma),
                         np.float32(vibrancy),
@@ -89,5 +110,31 @@ class Renderer:
                         np.uint32(1)
                         ).wait()
         imgdata = self.pixel_array.get()
-        return Image.fromarray(imgdata.reshape(*self.size, 4)[:,:,:3].astype(np.uint8))
+        return Image.fromarray(imgdata.reshape(self.h, self.w, 4)[:,:,:3].astype(np.uint8))
 
+    def reset(self):
+        """Fill the histogram with 0s"""
+        self.histogram.fill(0)
+    
+    def randomize_particles(self):
+        """Reset all particles to pseudo-random starting points"""
+        self.particles.set(np.array([
+            rand_particle(prng.lcg32_skip(self.seed, i << 8)) for i in range(self.n_particles)
+            ], dtype=krnl.cl_types[krnl.particle_type_key]))
+        self.seed = prng.lcg32_skip(self.seed, (self.n_particles << 8) + 1)
+    
+    def render(
+            self,
+            camera: types.AffineTransform,
+            transforms: list[pysulfur.Transform],
+            palette: types.Palette,
+            iters: int,
+            skip: int,
+            vibrancy: float = 1,
+            gamma: float = 0.8,
+            brightness: float = 20) -> Image:
+        """Perform a start-to-finish rendering job, returning a PIL RGB Image object."""
+        self.reset()
+        self.randomize_particles()
+        self.chaos_game(camera, transforms, palette, iters, skip)
+        return self.image(vibrancy, gamma, brightness)

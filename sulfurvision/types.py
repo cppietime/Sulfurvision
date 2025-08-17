@@ -21,3 +21,4 @@ Color = np.ndarray[tuple[int], np.dtype[np.float64]]
 # Maps linear color index to a color value
 Colorizer = typing.Callable[[float], Color]
 ImageGrid = np.ndarray[tuple[int, int, int], np.dtype[np.float64]]
+Palette = np.ndarray[tuple[int, typing.Literal[4]], np.dtype[np.uint8]]

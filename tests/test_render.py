@@ -74,8 +74,27 @@ def test_render():
     img = renderer.render(camera, transforms, palette, 10000, 15, gamma=0.5, brightness=50, vibrancy=1)
     img.save('render.png')
 
+def test_anim():
+    frame0 = pysulfur.Transform.read_json(json_str)
+    frame1 = pysulfur.Transform.read_json(json_sier)
+    w = h = 1000
+    sample = 2
+    renderer = render.Renderer(w, h, sample, 1000, 3, len(frame0))
+    camera = np.array([w * sample / 2, 0, w * sample / 2, 0, h * sample / 2, h * sample / 2])
+    palette = np.array([
+        [0, 255, 255, 1],
+        [255, 0, 255, 1],
+        [255, 255, 0, 1],
+    ])
+    n_frames = 20
+    for i in range(n_frames):
+        z = i / (n_frames - 1)
+        transforms = list(map(lambda pair: pysulfur.Transform.lerp(*pair, z), zip(frame0, frame1)))
+        img = renderer.render(camera, transforms, palette, 1000, 15, gamma=0.5, brightness=50, vibrancy=1)
+        img.save(f'anim_{i:02}.png')
+
 def main():
-    test_render()
+    test_anim()
 
 if __name__ == '__main__':
     main()
