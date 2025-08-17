@@ -1,3 +1,5 @@
+import typing
+
 import numpy as np
 from PIL import Image
 import pyopencl as cl
@@ -58,7 +60,7 @@ class Renderer:
         self.camera = clarray.zeros(Renderer._queue, 6, np.float32)
         self.variations = clarray.empty(Renderer._queue, (n_variations,), krnl.cl_types[krnl.transform_type_key])
 
-    def chaos_game(self, camera: types.AffineTransform, transforms: list[pysulfur.Transform], palette: types.Palette, iters: int, skip: int):
+    def chaos_game(self, camera: types.AffineTransform, transforms: typing.Sequence[pysulfur.Transform], palette: types.Palette, iters: int, skip: int):
         """Run the chaos game, and do nothing else that is not necessary for it."""
         self.palette.set(np.asarray([cltypes.make_float4(*color) for color in palette], cltypes.float4))
         self.camera.set(np.asarray(camera, np.float32))
@@ -126,7 +128,7 @@ class Renderer:
     def render(
             self,
             camera: types.AffineTransform,
-            transforms: list[pysulfur.Transform],
+            transforms: typing.Sequence[pysulfur.Transform],
             palette: types.Palette,
             iters: int,
             skip: int,

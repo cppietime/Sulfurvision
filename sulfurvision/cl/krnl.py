@@ -1,4 +1,5 @@
 from os import path
+import typing
 
 import numpy as np
 import pyopencl as cl
@@ -11,7 +12,7 @@ cl_types = {}
 transform_type_key = 'transform_t'
 particle_type_key = 'particle_t'
 
-def transform_to_cl(transforms, q):
+def transform_to_cl(transforms: typing.Sequence[pysulfur.Transform], q: cl.CommandQueue) -> clarray.Array:
     if transform_type_key not in cl_types:
         raise Exception('Types have not yet been defined')
     host_transform_type = cl_types[transform_type_key]
@@ -25,7 +26,7 @@ def transform_to_cl(transforms, q):
         host_transforms[i]['color_speed'] = transform.color_speed
     return clarray.to_device(q, host_transforms)
 
-def transform_into_cl(transforms, array):
+def transform_into_cl(transforms: typing.Sequence[pysulfur.Transform], array: clarray.Array):
     if transform_type_key not in cl_types:
         raise Exception('Types have not yet been defined')
     host_transform_type = cl_types[transform_type_key]
@@ -39,13 +40,13 @@ def transform_into_cl(transforms, array):
         host_transforms[i]['color_speed'] = transform.color_speed
     array.set(host_transforms)
 
-def register_type(device, name, nptype):
+def register_type(device: cl.Device, name: str, nptype: np.dtype) -> str:
     host_type, dev_type = cltools.match_dtype_to_c_struct(device, name, nptype)
     host_type = cltools.get_or_register_dtype(name, host_type)
     cl_types[name] = host_type
     return dev_type
 
-def define_types(device):
+def define_types(device: cl.Device) -> str:
     np_transform = np.dtype([
         ('weights', f'{len(variations.Variation.variations)}f4'),
         ('params', f'{variations.Variation.param_counter}f4'),
@@ -70,7 +71,7 @@ def define_types(device):
     return '\n'.join(srcs)
     
 
-def combine_source(device):
+def combine_source(device: cl.Device) -> str:
     folder = path.split(__file__)[0]
     srcs = []
     # #defines
@@ -102,7 +103,7 @@ def combine_source(device):
     src = '\n'.join(srcs)
     return src
 
-def build_kernel(ctx, device):
+def build_kernel(ctx: cl.Context, device: cl.Device) -> cl.Program:
     src = combine_source(device)
     program = cl.Program(ctx, src)
     return program.build()
