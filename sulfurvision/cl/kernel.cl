@@ -55,9 +55,9 @@ __kernel void flame_kernel(
                     uint pixel_id = ux + uy * histogram_size.x;
                     __global uint* pixptr = histogram + pixel_id * 4;
                     uchar4 rgba = sample_palette(palette, particle.color, n_colors);
-                    atomic_add(pixptr + 0, rgba.r);
-                    atomic_add(pixptr + 1, rgba.g);
-                    atomic_add(pixptr + 2, rgba.b);
+                    atomic_add(pixptr + 0, rgba.x);
+                    atomic_add(pixptr + 1, rgba.y);
+                    atomic_add(pixptr + 2, rgba.z);
                     atomic_add(pixptr + 3, 1);
                 }
             }
@@ -82,17 +82,17 @@ __kernel void downsample_kernel(
                 for (uint dy = 0; dy < supersampling; dy++) {
                     uint2 src_xy = dest_xy * supersampling + (uint2)(dx, dy);
                     uint src_pix = src_xy.y * histogram_size.x + src_xy.x;
-                    sum.r += histogram[src_pix * 4 + 0];
-                    sum.g += histogram[src_pix * 4 + 1];
-                    sum.b += histogram[src_pix * 4 + 2];
-                    sum.a += histogram[src_pix * 4 + 3];
+                    sum.x += histogram[src_pix * 4 + 0];
+                    sum.y += histogram[src_pix * 4 + 1];
+                    sum.z += histogram[src_pix * 4 + 2];
+                    sum.w += histogram[src_pix * 4 + 3];
                 }
             }
             //sum /= supersampling * supersampling;
-            image[dest_pix * 4 + 0] = sum.r;
-            image[dest_pix * 4 + 1] = sum.g;
-            image[dest_pix * 4 + 2] = sum.b;
-            image[dest_pix * 4 + 3] = sum.a;
+            image[dest_pix * 4 + 0] = sum.x;
+            image[dest_pix * 4 + 1] = sum.y;
+            image[dest_pix * 4 + 2] = sum.z;
+            image[dest_pix * 4 + 3] = sum.w;
         }
 }
 
@@ -128,17 +128,17 @@ __kernel void tonemap_kernel(
             float4 frgba = (float4)(pixptr[0], pixptr[1], pixptr[2], pixptr[3]);
             // Log-log scale
             if (mode & TONEMAP_MODE_LOG) {
-                //frgba.a = frgba.a / log10(1 + brightness * frgba.a / max_alpha);
-                frgba *= log10(1 + brightness * frgba.a / max_alpha) / frgba.a;
+                //frgba.w = frgba.w / log10(1 + brightness * frgba.w / max_alpha);
+                frgba *= log10(1 + brightness * frgba.w / max_alpha) / frgba.w;
             } else {
-                frgba = (fabs(frgba.a) < EPSILON) ? (float4)(0, 0, 0, 1) : (frgba / frgba.a);
+                frgba = (fabs(frgba.w) < EPSILON) ? (float4)(0, 0, 0, 1) : (frgba / frgba.w);
             }
-            //frgba *= pow(frgba.a, gamma) / frgba.a;
-            frgba = vibrancy * frgba * pow(frgba.a, gamma) / frgba.a + (1 - vibrancy) * 256 * pow(frgba / 256, gamma);
-            frgba = clamp(frgba, 0, 255);
-            pixptr[0] = frgba.r;
-            pixptr[1] = frgba.g;
-            pixptr[2] = frgba.b;
-            pixptr[3] = frgba.a;
+            //frgba *= pow(frgba.w, gamma) / frgba.w;
+            frgba = vibrancy * frgba * pow(frgba.w, gamma) / frgba.w + (1 - vibrancy) * 256 * pow(frgba / 256, gamma);
+            frgba = clamp(frgba, 0.0, 255.0);
+            pixptr[0] = frgba.x;
+            pixptr[1] = frgba.y;
+            pixptr[2] = frgba.z;
+            pixptr[3] = frgba.w;
         }
 }

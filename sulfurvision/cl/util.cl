@@ -37,5 +37,5 @@ uchar4 sample_palette(__constant float4* palette, const float color, const uint 
         float4 color1 = palette[idx0 + 1];
         color0 += (color1 - color0) * frac;
     }
-    return (uchar4)(color0.r, color0.g, color0.b, color0.a);
+    return (uchar4)(color0.x, color0.y, color0.z, color0.w);
 }
