@@ -77,11 +77,12 @@ class Transform:
         return util.lerp(color, self.color, self.color_speed)
 
     def dump_json(self) -> str:
+        print(self)
         return json.dumps(
             {
-                "weights": list[self.weights],
-                "params": list[self.params],
-                "affine": list[self.affine],
+                "weights": list(self.weights),
+                "params": list(self.params),
+                "affine": list(self.affine),
                 "probability": self.probability,
                 "color": self.color,
                 "color_speed": self.color_speed,

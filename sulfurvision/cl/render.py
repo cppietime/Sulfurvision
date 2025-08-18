@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import typing
 
 import numpy as np
@@ -49,6 +50,27 @@ class RenderFrame:
             + np.asarray(other.camera, dtype=np.float64),
             self.time + other.time,
         )
+
+    def dump_json(self) -> str:
+        tf_list = [json.loads(tf.dump_json()) for tf in self.transforms]
+        pal_list = [list(color) for color in self.palette]
+        return json.dumps(
+            {
+                "transforms": tf_list,
+                "palette": pal_list,
+                "camera": list(self.camera),
+                "time": self.time,
+            }
+        )
+
+    @staticmethod
+    def read_json(s: str) -> "RenderFrame":
+        d = json.loads(s)
+        transforms = list(map(pysulfur.Transform.from_dict, d["transforms"]))
+        palette = np.asarray(d["palette"], dtype=np.float64)
+        camera = np.asarray(d["camera"], dtype=np.float64)
+        time = d["time"]
+        return RenderFrame(transforms, palette, camera, time)
 
 
 class Renderer:

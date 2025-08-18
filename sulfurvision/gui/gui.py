@@ -261,23 +261,10 @@ class SulfurGui(tk.Frame):
         )
         self.animate.grid(row=13, column=2)
 
-        self.copy_frame = tk.Button(
-            self.anim_frame, text="Copy Frame", command=self.copy_command
-        )
-        self.copy_frame.grid(row=10, column=2)
-        self.paste_frame = tk.Button(
-            self.anim_frame, text="Paste Frame", command=self.paste_command
-        )
-        self.paste_frame.grid(row=11, column=2)
-
-        self.imp = tk.Button(
-            self.anim_frame, text="Import Frame", command=self.imp_command
-        )
-        self.imp.grid(row=14, column=0)
-        self.exp = tk.Button(
-            self.anim_frame, text="Export Frame", command=self.exp_command
-        )
-        self.exp.grid(row=14, column=1)
+        self.imp = tk.Button(self.anim_frame, text="Import", command=self.imp_command)
+        self.imp.grid(row=10, column=2)
+        self.exp = tk.Button(self.anim_frame, text="Export", command=self.exp_command)
+        self.exp.grid(row=11, column=2)
 
         self.keyframe = KeyframeFrame(self, frame=self.frames[self.dropdown.current()])
         self.keyframe.grid(row=0, column=1)
@@ -285,9 +272,7 @@ class SulfurGui(tk.Frame):
 
         self.render_preview_now()
 
-    def copy_command(self): ...
-
-    def paste_command(self): ...
+        self.clipboard = None
 
     def animate_command(self): ...
 
@@ -372,7 +357,6 @@ class SulfurGui(tk.Frame):
         self.keyframe.update()
         pairs = self.pairs_for_splines()
         frame = util.spline_step(pairs, t)
-        print(frame)
         self.renderer.update_to_match(
             w, h, supersampling, seeds, self.n_colors, self.n_transforms
         )
@@ -391,7 +375,6 @@ class SulfurGui(tk.Frame):
         img = self.render_to_image(
             _PREVIEW_SIZE, _PREVIEW_SIZE, 1, 100, 100, 15, 20, 1, 1, time
         )
-        print(img.mode)
         photo = ImageTk.PhotoImage(image=img)
         self.preview.config(image=photo)
         self.preview.image = photo
@@ -520,6 +503,7 @@ class ColorPickerFrame(tk.Frame):
             self.set_color(color[0])
 
     def set_color(self, color):
+        color = tuple(map(int, color))
         self.preview.config(bg=f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}")
         self.red_var.set(color[0])
         self.green_var.set(color[1])
@@ -628,7 +612,12 @@ class TransformFrame(tk.Frame):
         self.affine_label = tk.Label(self, text="Affine Transform:")
         self.affine_label.grid(row=1, column=0, sticky="w")
         self.affine_frame = AffineTransformFrame(self)
-        self.affine_frame.grid(row=2, column=0, columnspan=2, sticky="w")
+        self.affine_frame.grid(row=2, column=0, columnspan=3, sticky="w")
+
+        self.copy = tk.Button(self, text="Copy Transform", command=self.copy_command)
+        self.copy.grid(row=0, column=2)
+        self.paste = tk.Button(self, text="Paste Transform", command=self.paste_command)
+        self.paste.grid(row=1, column=2)
 
         # self.color_frame = ColorPickerFrame(self)
         # self.color_frame.grid(row=3, column=0, columnspan=2)
@@ -668,6 +657,18 @@ class TransformFrame(tk.Frame):
 
         if self.transform:
             self.load(self.transform)
+
+        self.clipboard = None
+
+    def copy_command(self):
+        self.update()
+        self.clipboard = self.transform.dump_json()
+
+    def paste_command(self):
+        if self.clipboard is None:
+            return
+        transform = pysulfur.Transform.read_json(self.clipboard)
+        self.load(transform)
 
     def variation_selected(self, _):
         # Save old values
@@ -746,18 +747,37 @@ class KeyframeFrame(tk.Frame):
             color_frame.grid(row=i, column=0, sticky="ew")
             self.color_pickers.append(color_frame)
 
+        self.copy_frame = tk.Button(self, text="Copy Frame", command=self.copy_command)
+        self.copy_frame.grid(row=4, column=0)
+        self.paste_frame = tk.Button(
+            self, text="Paste Frame", command=self.paste_command
+        )
+        self.paste_frame.grid(row=4, column=1)
+
         self.dropdown = ttk.Combobox(
             self,
             values=[f"Transform #{i}" for i in range(self.n_transforms)],
             state="readonly",
         )
         self.dropdown.set(f"Transform #{self.tf_num}")
-        self.dropdown.grid(row=4, column=0, sticky="w")
+        self.dropdown.grid(row=5, column=0, sticky="w")
         self.dropdown.bind("<<ComboboxSelected>>", self.transform_selected)
         self.tf_frame = TransformFrame(
             self, transform=self.frame.transforms[self.tf_num]
         )
-        self.tf_frame.grid(row=5, column=0, columnspan=2)
+        self.tf_frame.grid(row=6, column=0, columnspan=2)
+
+        self.clipboard = None
+
+    def copy_command(self):
+        self.update()
+        self.clipboard = self.frame.dump_json()
+
+    def paste_command(self):
+        if self.clipboard is None:
+            return
+        # TODO check for matching dimensions
+        self.load(render.RenderFrame.read_json(self.clipboard))
 
     def transform_selected(self, _):
         self.update_current_transform()
@@ -778,15 +798,15 @@ class KeyframeFrame(tk.Frame):
         if abs(total_prob) > 1e-9:
             for tf in self.frame.transforms:
                 tf.probability /= total_prob
-        # TODO check that probs are not corruptin
         self.tf_frame.load(self.frame.transforms[self.dropdown.current()])
 
     def load(self, frame):
+        print(frame, "\nVS\n", self.frame)
         self.frame = frame
         self.n_colors = len(self.frame.palette)
         self.n_transforms = len(self.frame.transforms)
         if self.tf_num >= self.n_transforms:
-            self.tf_num = self.n_transforms
+            self.tf_num = self.n_transforms - 1
         self.time_var.set(self.frame.time)
         self.camera_frame.set_affine(self.frame.camera)
         for i, color in enumerate(self.frame.palette):
