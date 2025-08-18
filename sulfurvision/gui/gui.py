@@ -35,6 +35,26 @@ class ScrollableFrame(tk.Frame):
 
         self.frame.bind('<Configure>', lambda event: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
         self.canvas.bind('<Configure>', lambda event: self.canvas.itemconfig(self.canvas.find_withtag('all')[0], width=event.width))
+        self.canvas.bind('<Enter>', self.bindwheel)
+        self.canvas.bind('<Leave>', self.unbindwheel)
+    
+    def bindwheel(self, _):
+        self.canvas.bind_all('<MouseWheel>', self.scroll)
+        self.canvas.bind_all('<Button-4>', self.scroll)
+        self.canvas.bind_all('<Button-5>', self.scroll)
+    
+    def unbindwheel(self, _):
+        self.canvas.unbind_all('<MouseWheel>')
+        self.canvas.unbind_all('<Button-4>')
+        self.canvas.unbind_all('<Button-5>')
+    
+    def scroll(self, event):
+        if event.delta:
+            self.canvas.yview_scroll(int(-event.delta / 120), 'units')
+        elif event.num == 4:
+            self.canvas.yview_scroll(-1, 'units')
+        elif event.num == 5:
+            self.canvas.yview_scroll(1, 'units')
 
 class AffineTransformFrame(tk.Frame):
     def __init__(self, *args, **kwargs):
