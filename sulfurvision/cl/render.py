@@ -9,7 +9,7 @@ from pyopencl import cltypes
 from sulfurvision import prng, pysulfur, types
 from sulfurvision.cl import bootstrap, krnl
 
-def rand_particle(seed):
+def rand_particle(seed: int) -> tuple[cltypes.float2, int, float]:
     seed, x = prng.rand_uniform(seed)
     seed, y = prng.rand_uniform(seed)
     seed, color = prng.rand_uniform(seed)

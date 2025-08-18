@@ -17,8 +17,7 @@ def lcg32_skip(seed: int, skip: int) -> int:
     ) & 0xFFFFFFFF
     return val
 
-_randfunc = xorshift32
-
+_randfunc = lcg32
 
 def rand_u32(seed: int) -> int:
     return _randfunc(seed)
