@@ -181,20 +181,53 @@ class SulfurGui(tk.Frame):
         )
         self.vib_box.grid(row=7, column=1)
 
-        # Row 8: Seeds
-        # Row 9: Iters
-        # Row 10: Skip
+        self.seed_label = tk.Label(self.anim_frame, text="Seeds:")
+        self.seed_label.grid(row=8, column=0)
+        self.seed_var = tk.IntVar(value=20)
+        self.seed_box = tk.Entry(
+            self.anim_frame,
+            textvariable=self.seed_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_int, "%P"),
+        )
+        self.seed_box.grid(row=8, column=1)
+
+        self.iter_label = tk.Label(self.anim_frame, text="Iterations:")
+        self.iter_label.grid(row=9, column=0)
+        self.iter_var = tk.IntVar(value=100)
+        self.iter_box = tk.Entry(
+            self.anim_frame,
+            textvariable=self.iter_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_int, "%P"),
+        )
+        self.iter_box.grid(row=9, column=1)
+
+        self.skip_label = tk.Label(self.anim_frame, text="Skip:")
+        self.skip_label.grid(row=10, column=0)
+        self.skip_var = tk.IntVar(value=10)
+        self.skip_box = tk.Entry(
+            self.anim_frame,
+            textvariable=self.skip_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_int, "%P"),
+        )
+        self.skip_box.grid(row=10, column=1)
+
+        # Row 11: Preview
+        # Row 12: Render
+        # Row 13: Animate
 
         self.preview_this = tk.Button(
             self.anim_frame, text="Preview This Frame", command=self.render_preview_now
         )
-        self.preview_this.grid(row=9, column=0)
+        self.preview_this.grid(row=11, column=0)
         self.preview_then = tk.Button(
             self.anim_frame,
             text="Preview At t=",
             command=lambda: self.render_preview(self.t_var.get()),
         )
-        self.preview_then.grid(row=9, column=1)
+        self.preview_then.grid(row=11, column=1)
         self.t_var = tk.DoubleVar(value=0)
         self.preview_t = tk.Entry(
             self.anim_frame,
@@ -202,19 +235,19 @@ class SulfurGui(tk.Frame):
             validate="all",
             validatecommand=(SulfurGui.validate_float, "%P"),
         )
-        self.preview_t.grid(row=9, column=2)
+        self.preview_t.grid(row=12, column=2)
 
         self.now_button = tk.Button(
             self.anim_frame, text="Render This Frame", command=lambda: ()
         )
-        self.now_button.grid(row=10, column=0)
+        self.now_button.grid(row=12, column=0)
         self.then_button = tk.Button(
             self.anim_frame, text="Render At t=", command=lambda: ()
         )
-        self.then_button.grid(row=10, column=1)
+        self.then_button.grid(row=12, column=1)
 
         self.rate_label = tk.Label(self.anim_frame, text="Frames Per\ndt=1.0:")
-        self.rate_label.grid(row=11, column=0)
+        self.rate_label.grid(row=13, column=0)
         self.rate_var = tk.DoubleVar(value=20)
         self.rate_box = tk.Entry(
             self.anim_frame,
@@ -222,30 +255,45 @@ class SulfurGui(tk.Frame):
             validate="all",
             validatecommand=(SulfurGui.validate_float, "%P"),
         )
-        self.rate_box.grid(row=11, column=1)
+        self.rate_box.grid(row=13, column=1)
         self.animate = tk.Button(
             self.anim_frame, text="Animate", command=self.animate_command
         )
-        self.animate.grid(row=11, column=2)
+        self.animate.grid(row=13, column=2)
 
         self.copy_frame = tk.Button(
             self.anim_frame, text="Copy Frame", command=self.copy_command
         )
-        self.copy_frame.grid(row=8, column=2)
+        self.copy_frame.grid(row=10, column=2)
         self.paste_frame = tk.Button(
             self.anim_frame, text="Paste Frame", command=self.paste_command
         )
-        self.paste_frame.grid(row=9, column=2)
+        self.paste_frame.grid(row=11, column=2)
+
+        self.imp = tk.Button(
+            self.anim_frame, text="Import Frame", command=self.imp_command
+        )
+        self.imp.grid(row=14, column=0)
+        self.exp = tk.Button(
+            self.anim_frame, text="Export Frame", command=self.exp_command
+        )
+        self.exp.grid(row=14, column=1)
 
         self.keyframe = KeyframeFrame(self, frame=self.frames[self.dropdown.current()])
         self.keyframe.grid(row=0, column=1)
         self.update_keyframe()
+
+        self.render_preview_now()
 
     def copy_command(self): ...
 
     def paste_command(self): ...
 
     def animate_command(self): ...
+
+    def imp_command(self): ...
+
+    def exp_command(self): ...
 
     def select_keyframe(self, _):
         self.keyframe.update()
