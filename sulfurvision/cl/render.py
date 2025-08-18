@@ -92,7 +92,13 @@ class Renderer:
         )
 
     def update_to_match(
-        self, w: int, h: int, supersample: int, n_particles: int, n_colors: int
+        self,
+        w: int,
+        h: int,
+        supersample: int,
+        n_particles: int,
+        n_colors: int,
+        n_variations: int,
     ) -> None:
         if (
             self.w == w
@@ -100,6 +106,7 @@ class Renderer:
             and self.supersample == supersample
             and self.n_particles == n_particles
             and self.n_colors == n_colors
+            and self.n_variations == n_variations
         ):
             return
         self.w = w
@@ -107,6 +114,7 @@ class Renderer:
         self.supersample = supersample
         self.n_particles = n_particles
         self.n_colors = n_colors
+        self.n_variations = n_variations
         self.img_size = cltypes.make_uint2(w, h)
         self.pixel_array = clarray.zeros(Renderer._queue, w * h * 4, np.uint32)
         self.histogram = clarray.zeros(
@@ -117,6 +125,9 @@ class Renderer:
             Renderer._queue, (n_particles,), krnl.cl_types[krnl.particle_type_key]
         )
         self.palette = clarray.empty(Renderer._queue, n_colors, cltypes.float4)
+        self.variations = clarray.empty(
+            Renderer._queue, (n_variations,), krnl.cl_types[krnl.transform_type_key]
+        )
 
     def chaos_game(
         self,
@@ -214,7 +225,7 @@ class Renderer:
                 dtype=krnl.cl_types[krnl.particle_type_key],
             )
         )
-        self.seed = prng.lcg32_skip(self.seed, (self.n_particles << 8) + 1)
+        # self.seed = prng.lcg32_skip(self.seed, (self.n_particles << 8) + 1)
 
     def render(
         self,
