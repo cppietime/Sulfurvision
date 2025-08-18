@@ -117,9 +117,6 @@ class VariationFrame(tk.Frame):
     """Presents all parameters of one variation in a transform:
     - Weight
     - Params
-    - Affine
-    - Color
-    - Color speed
     """
     def __init__(self, *args, **kwargs):
         variation = kwargs.pop('variation', None)
@@ -139,20 +136,6 @@ class VariationFrame(tk.Frame):
         self.param_vars = []
         self.params_frame = tk.Frame(self)
         self.params_frame.grid(row=2, column=0, columnspan=2, sticky='ew')
-        
-        self.affine_label = tk.Label(self, text='Affine Transform:')
-        self.affine_label.grid(row=3, column=0, sticky='w')
-        self.affine_frame = AffineTransformFrame(self)
-        self.affine_frame.grid(row=4, column=0, columnspan=2, sticky='w')
-
-        self.color_frame = ColorPickerFrame(self)
-        self.color_frame.grid(row=5, column=0, columnspan=2)
-
-        self.speed_label = tk.Label(self, text='Speed:')
-        self.speed_label.grid(row=6, column=0, sticky='w')
-        self.speed_var = tk.DoubleVar(value=0)
-        self.speed_box = tk.Entry(self, textvariable=self.speed_var, validate='all', validatecommand=(SulfurGui.validate_float, '%P'))
-        self.speed_box.grid(row=6, column=1, sticky='e')
 
         if variation:
             self.load(variation, transform)
@@ -175,16 +158,53 @@ class VariationFrame(tk.Frame):
             box.grid(row=i, column=1, sticky='e')
             self.param_boxes.append(box)
         
+        if transform:
+            index = variations.Variation.variations_map[variation.name]
+            self.weight_var.set(str(transform.weights[index]))
+
+class TransformFrame(tk.Frame):
+    def __init__(self, *args, **kwargs):
+        transform = kwargs.pop('transform', None)
+        super().__init__(*args, **kwargs)
+
+        self.prob_label = tk.Label(self, text='Probability')
+        self.prob_label.grid(row=0, column=0, sticky='w')
+        self.prob_var = tk.DoubleVar(value=0)
+        self.prob_box = tk.Entry(self, textvariable=self.prob_var, validate='all', validatecommand=(SulfurGui.validate_float, '%P'))
+        self.prob_box.grid(row=0, column=1, sticky='e')
+        
+        self.affine_label = tk.Label(self, text='Affine Transform:')
+        self.affine_label.grid(row=1, column=0, sticky='w')
+        self.affine_frame = AffineTransformFrame(self)
+        self.affine_frame.grid(row=2, column=0, columnspan=2, sticky='w')
+
+        self.color_frame = ColorPickerFrame(self)
+        self.color_frame.grid(row=3, column=0, columnspan=2)
+
+        self.speed_label = tk.Label(self, text='Speed:')
+        self.speed_label.grid(row=4, column=0, sticky='w')
+        self.speed_var = tk.DoubleVar(value=0)
+        self.speed_box = tk.Entry(self, textvariable=self.speed_var, validate='all', validatecommand=(SulfurGui.validate_float, '%P'))
+        self.speed_box.grid(row=4, column=1, sticky='e')
+
+        self.var_editor = VariationFrame(self, variation = variations.variation_linear)
+        self.var_editor.grid(row=0, column=2, rowspan=5)
+        # TODO: Add a dropdown(combobox) to choose one variation at a time
+
+        if transform:
+            self.load(transform)
+    
+    def load(self, transform: pysulfur.Transform):
+        # TODO: populate variables from a transform
+        ...
 
 def main():
     root = tk.Tk()
     gui = SulfurGui(root)
     gui.pack(expand=True, fill='both')
     scrollable = ScrollableFrame(gui)
-    for variation in variations.Variation.variations:
-        vf = VariationFrame(scrollable.frame)
-        vf.load(variation, None)
-        vf.pack(fill='both', expand=True)
+    tf = TransformFrame(scrollable.frame)
+    tf.pack(fill='both', expand=True)
     scrollable.pack(fill='both', expand=True)
     tk.mainloop()
 
