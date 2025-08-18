@@ -14,10 +14,12 @@ from sulfurvision import prng, types, util, variations
 
 def affine_transform(coord: types.Coord, affine: types.AffineTransform) -> types.Coord:
     """Apply an affine transform to a 2D coordinate and return the result."""
-    return np.array((
-        coord[0] * affine[0] + coord[1] * affine[1] + affine[2],
-        coord[0] * affine[3] + coord[1] * affine[4] + affine[5],
-    ))
+    return np.array(
+        (
+            coord[0] * affine[0] + coord[1] * affine[1] + affine[2],
+            coord[0] * affine[3] + coord[1] * affine[4] + affine[5],
+        )
+    )
 
 
 @dataclasses.dataclass
@@ -75,17 +77,19 @@ class Transform:
         return util.lerp(color, self.color, self.color_speed)
 
     def dump_json(self) -> str:
-        return json.dumps({
-            'weights': list[self.weights],
-            'params': list[self.params],
-            'affine': list[self.affine],
-            'probability': self.probability,
-            'color': self.color,
-            'color_speed': self.color_speed,
-        })
+        return json.dumps(
+            {
+                "weights": list[self.weights],
+                "params": list[self.params],
+                "affine": list[self.affine],
+                "probability": self.probability,
+                "color": self.color,
+                "color_speed": self.color_speed,
+            }
+        )
 
     @staticmethod
-    def read_json(jsn: str) -> typing.Union[list['Transform'], 'Transform']:
+    def read_json(jsn: str) -> typing.Union[list["Transform"], "Transform"]:
         d = json.loads(jsn)
         if isinstance(d, list):
             transforms = list(map(Transform.from_dict, d))
@@ -97,23 +101,23 @@ class Transform:
         return Transform.from_dict(d)
 
     @staticmethod
-    def from_dict(d: dict) -> 'Transform':
-        if isinstance(d['weights'], dict):
-            weights = variations.Variation.as_weights(d['weights'])
+    def from_dict(d: dict) -> "Transform":
+        if isinstance(d["weights"], dict):
+            weights = variations.Variation.as_weights(d["weights"])
         else:
-            weights = np.array(d['weights'], dtype=np.float64)
-        if isinstance(d['params'], dict):
-            params = variations.Variation.as_params(d['params'])
+            weights = np.array(d["weights"], dtype=np.float64)
+        if isinstance(d["params"], dict):
+            params = variations.Variation.as_params(d["params"])
         else:
-            params = np.array(d['params'], dtype=np.float64)
-        affine = np.array(d['affine'], dtype=np.float64)
-        probability = d['probability']
-        color = d['color']
-        color_speed = d['color_speed']
+            params = np.array(d["params"], dtype=np.float64)
+        affine = np.array(d["affine"], dtype=np.float64)
+        probability = d["probability"]
+        color = d["color"]
+        color_speed = d["color_speed"]
         return Transform(weights, params, affine, probability, color, color_speed)
 
     @staticmethod
-    def lerp(t0: 'Transform', t1: 'Transform', z: float) -> 'Transform':
+    def lerp(t0: "Transform", t1: "Transform", z: float) -> "Transform":
         weights = util.lerp(t0.weights, t1.weights, z)
         params = util.lerp(t0.params, t1.params, z)
         affine = util.lerp(t0.affine, t1.affine, z)
@@ -121,6 +125,26 @@ class Transform:
         color = util.lerp(t0.color, t1.color, z)
         color_speed = util.lerp(t0.color_speed, t1.color_speed, z)
         return Transform(weights, params, affine, probability, color, color_speed)
+
+    def __mul__(self, other) -> "Transform":
+        return Transform(
+            self.weights * other,
+            self.params * other,
+            self.affine * other,
+            self.probability * other,
+            self.color * other,
+            self.color_speed * other,
+        )
+
+    def __add__(self, other) -> "Transform":
+        return Transform(
+            self.weights + other.weights,
+            self.params + other.params,
+            self.affine + other.affine,
+            self.probability + other.probability,
+            self.color + other.color,
+            self.color_speed + other.color_speed,
+        )
 
 
 @dataclasses.dataclass
@@ -131,7 +155,9 @@ class Flame:
 
     transforms: list[Transform]
     palette: types.Colorizer
-    camera: types.AffineTransform = dataclasses.field(default_factory = lambda: types.IdentityAffine)
+    camera: types.AffineTransform = dataclasses.field(
+        default_factory=lambda: types.IdentityAffine
+    )
     total_weight: float = dataclasses.field(init=False, default=0)
 
     def __post_init__(self):
@@ -151,7 +177,9 @@ class Flame:
         else:
             raise Exception("Error calculating weights")
 
-    def iterate_step(self, states: list[State], grid: typing.Optional[types.ImageGrid]) -> None:
+    def iterate_step(
+        self, states: list[State], grid: typing.Optional[types.ImageGrid]
+    ) -> None:
         """Performs one iteration on each state in a list, and returns the list of logged events.
         Modifies states to the new states, but does not modify any State objects passed within the list.
         """

@@ -29,6 +29,27 @@ class RenderFrame:
     camera: types.AffineTransform
     time: float
 
+    def __mul__(self, other) -> "RenderFrame":
+        return RenderFrame(
+            np.asarray(self.transforms, dtype=np.float64) * other,
+            np.asarray(self.palette, dtype=np.float64) * other,
+            np.asarray(self.camera, dtype=np.float64) * other,
+            self.time * other,
+        )
+
+    def __add__(self, other) -> "RenderFrame":
+        assert len(self.transforms) == len(other.transforms)
+        assert len(self.palette) == len(other.palette)
+        return RenderFrame(
+            np.asarray(self.transforms, dtype=np.float64)
+            + np.asarray(other.transforms, dtype=np.float64),
+            np.asarray(self.palette, dtype=np.float64)
+            + np.asarray(other.palette, dtype=np.float64),
+            np.asarray(self.camera, dtype=np.float64)
+            + np.asarray(other.camera, dtype=np.float64),
+            self.time + other.time,
+        )
+
 
 class Renderer:
     """Utility class for rendering flames."""
@@ -164,7 +185,7 @@ class Renderer:
 
     def image(
         self, vibrancy: float = 1, gamma: float = 0.8, brightness: float = 20
-    ) -> Image:
+    ) -> Image.Image:
         """Return an image from the current chaos game state, using the following steps:
         - Downsample, if necessary,
         - Calculate the maximum alpha,
@@ -225,7 +246,7 @@ class Renderer:
                 dtype=krnl.cl_types[krnl.particle_type_key],
             )
         )
-        # self.seed = prng.lcg32_skip(self.seed, (self.n_particles << 8) + 1)
+        self.seed = prng.lcg32_skip(self.seed, (self.n_particles << 8) + 1)
 
     def render(
         self,
@@ -237,7 +258,7 @@ class Renderer:
         vibrancy: float = 1,
         gamma: float = 0.8,
         brightness: float = 20,
-    ) -> Image:
+    ) -> Image.Image:
         """Perform a start-to-finish rendering job, returning a PIL RGB Image object."""
         self.reset()
         self.randomize_particles()

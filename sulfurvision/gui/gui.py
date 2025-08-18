@@ -2,9 +2,9 @@ import tkinter as tk
 from tkinter import colorchooser, ttk
 
 import numpy as np
-from PIL import ImageTk
+from PIL import Image, ImageTk
 
-from sulfurvision import pysulfur, types, variations
+from sulfurvision import pysulfur, types, util, variations
 from sulfurvision.cl import render
 
 
@@ -49,6 +49,9 @@ def default_frame(n_transforms, n_colors):
     )
 
 
+_PREVIEW_SIZE = 200
+
+
 class SulfurGui(tk.Frame):
     validate_float = None
     validate_int = None
@@ -57,7 +60,7 @@ class SulfurGui(tk.Frame):
         self.n_transforms = kwargs.pop("n_transforms", 1)
         self.n_colors = kwargs.pop("n_colors", 1)
         super().__init__(*args, **kwargs)
-        self.renderer = render.Renderer(100, 100, 1, 50, 1, 3)
+        self.renderer = render.Renderer(_PREVIEW_SIZE, _PREVIEW_SIZE, 1, 50, 1, 3)
 
         self.anim_frame = tk.Frame(self)
         self.anim_frame.grid(row=0, column=0, sticky="ns")
@@ -67,9 +70,10 @@ class SulfurGui(tk.Frame):
 
         self.frames = [default_frame(self.n_transforms, self.n_colors)]
 
-        self.dropdown = ttk.Combobox(self.anim_frame, values=["Frame #0"])
+        self.dropdown = ttk.Combobox(self.anim_frame, values=[], state="readonly")
+        self.refresh_dropdown()
         self.dropdown.bind("<<ComboboxSelected>>", self.select_keyframe)
-        self.dropdown.grid(row=0, column=0, columnspan=3)
+        self.dropdown.grid(row=0, column=0)
         self.dropdown.current(0)
 
         self.insert_before = tk.Button(
@@ -77,24 +81,24 @@ class SulfurGui(tk.Frame):
             text="New Frame\nBefore",
             command=lambda: self.insert_frame(self.dropdown.current()),
         )
-        self.insert_before.grid(row=1, column=0)
+        self.insert_before.grid(row=0, column=1)
 
         self.delete = tk.Button(
             self.anim_frame,
             text="Delete Frame",
             command=lambda: self.delete_frame(self.dropdown.current()),
         )
-        self.delete.grid(row=1, column=1)
+        self.delete.grid(row=1, column=2)
 
         self.insert_after = tk.Button(
             self.anim_frame,
             text="New Frame\nAfter",
             command=lambda: self.insert_frame(self.dropdown.current() + 1),
         )
-        self.insert_after.grid(row=1, column=2)
+        self.insert_after.grid(row=0, column=2)
 
         self.tf_label = tk.Label(self.anim_frame, text="#Tranforms:")
-        self.tf_label.grid(row=2, column=0)
+        self.tf_label.grid(row=1, column=0)
         self.tf_var = tk.IntVar(value=self.n_transforms)
         self.tf_box = tk.Entry(
             self.anim_frame,
@@ -102,14 +106,14 @@ class SulfurGui(tk.Frame):
             validate="all",
             validatecommand=(SulfurGui.validate_int, "%P"),
         )
-        self.tf_box.grid(row=2, column=1)
+        self.tf_box.grid(row=1, column=1)
         self.update_button = tk.Button(
             self.anim_frame, text="Update", command=self.update_command
         )
         self.update_button.grid(row=2, column=2)
 
         self.pal_label = tk.Label(self.anim_frame, text="#Colors:")
-        self.pal_label.grid(row=3, column=0)
+        self.pal_label.grid(row=2, column=0)
         self.pal_var = tk.IntVar(value=self.n_colors)
         self.pal_box = tk.Entry(
             self.anim_frame,
@@ -117,30 +121,13 @@ class SulfurGui(tk.Frame):
             validate="all",
             validatecommand=(SulfurGui.validate_int, "%P"),
         )
-        self.pal_box.grid(row=3, column=1)
+        self.pal_box.grid(row=2, column=1)
 
         self.preview = tk.Label(self.anim_frame, bg="#ffffff")
-        self.preview.grid(row=4, column=0, columnspan=3)
-
-        self.preview_this = tk.Button(
-            self.anim_frame, text="Preview\nThis Frame", command=lambda: ()
-        )
-        self.preview_this.grid(row=5, column=0)
-        self.preview_then = tk.Button(
-            self.anim_frame, text="Preview\nAt t=", command=self.render_preview
-        )
-        self.preview_then.grid(row=5, column=1)
-        self.t_var = tk.DoubleVar(value=0)
-        self.preview_t = tk.Entry(
-            self.anim_frame,
-            textvariable=self.t_var,
-            validate="all",
-            validatecommand=(SulfurGui.validate_float, "%P"),
-        )
-        self.preview_t.grid(row=5, column=2)
+        self.preview.grid(row=3, column=2, rowspan=7)
 
         self.width_label = tk.Label(self.anim_frame, text="Width:")
-        self.width_label.grid(row=6, column=0)
+        self.width_label.grid(row=3, column=0)
         self.width_var = tk.IntVar(value=100)
         self.width_box = tk.Entry(
             self.anim_frame,
@@ -148,10 +135,10 @@ class SulfurGui(tk.Frame):
             validate="all",
             validatecommand=(SulfurGui.validate_int, "%P"),
         )
-        self.width_box.grid(row=6, column=1)
+        self.width_box.grid(row=3, column=1)
 
         self.height_label = tk.Label(self.anim_frame, text="Height:")
-        self.height_label.grid(row=7, column=0)
+        self.height_label.grid(row=4, column=0)
         self.height_var = tk.IntVar(value=100)
         self.height_box = tk.Entry(
             self.anim_frame,
@@ -159,11 +146,106 @@ class SulfurGui(tk.Frame):
             validate="all",
             validatecommand=(SulfurGui.validate_int, "%P"),
         )
-        self.height_box.grid(row=7, column=1)
+        self.height_box.grid(row=4, column=1)
+
+        self.bright_label = tk.Label(self.anim_frame, text="Brightness:")
+        self.bright_label.grid(row=5, column=0)
+        self.bright_var = tk.DoubleVar(value=20)
+        self.bright_box = tk.Entry(
+            self.anim_frame,
+            textvariable=self.bright_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_float, "%P"),
+        )
+        self.bright_box.grid(row=5, column=1)
+
+        self.gamma_label = tk.Label(self.anim_frame, text="Gamma:")
+        self.gamma_label.grid(row=6, column=0)
+        self.gamma_var = tk.DoubleVar(value=20)
+        self.gamma_box = tk.Entry(
+            self.anim_frame,
+            textvariable=self.gamma_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_float, "%P"),
+        )
+        self.gamma_box.grid(row=6, column=1)
+
+        self.vib_label = tk.Label(self.anim_frame, text="Vibrancy:")
+        self.vib_label.grid(row=7, column=0)
+        self.vib_var = tk.DoubleVar(value=20)
+        self.vib_box = tk.Entry(
+            self.anim_frame,
+            textvariable=self.vib_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_float, "%P"),
+        )
+        self.vib_box.grid(row=7, column=1)
+
+        # Row 8: Seeds
+        # Row 9: Iters
+        # Row 10: Skip
+
+        self.preview_this = tk.Button(
+            self.anim_frame, text="Preview This Frame", command=self.render_preview_now
+        )
+        self.preview_this.grid(row=9, column=0)
+        self.preview_then = tk.Button(
+            self.anim_frame,
+            text="Preview At t=",
+            command=lambda: self.render_preview(self.t_var.get()),
+        )
+        self.preview_then.grid(row=9, column=1)
+        self.t_var = tk.DoubleVar(value=0)
+        self.preview_t = tk.Entry(
+            self.anim_frame,
+            textvariable=self.t_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_float, "%P"),
+        )
+        self.preview_t.grid(row=9, column=2)
+
+        self.now_button = tk.Button(
+            self.anim_frame, text="Render This Frame", command=lambda: ()
+        )
+        self.now_button.grid(row=10, column=0)
+        self.then_button = tk.Button(
+            self.anim_frame, text="Render At t=", command=lambda: ()
+        )
+        self.then_button.grid(row=10, column=1)
+
+        self.rate_label = tk.Label(self.anim_frame, text="Frames Per\ndt=1.0:")
+        self.rate_label.grid(row=11, column=0)
+        self.rate_var = tk.DoubleVar(value=20)
+        self.rate_box = tk.Entry(
+            self.anim_frame,
+            textvariable=self.rate_var,
+            validate="all",
+            validatecommand=(SulfurGui.validate_float, "%P"),
+        )
+        self.rate_box.grid(row=11, column=1)
+        self.animate = tk.Button(
+            self.anim_frame, text="Animate", command=self.animate_command
+        )
+        self.animate.grid(row=11, column=2)
+
+        self.copy_frame = tk.Button(
+            self.anim_frame, text="Copy Frame", command=self.copy_command
+        )
+        self.copy_frame.grid(row=8, column=2)
+        self.paste_frame = tk.Button(
+            self.anim_frame, text="Paste Frame", command=self.paste_command
+        )
+        self.paste_frame.grid(row=9, column=2)
 
         self.keyframe = KeyframeFrame(self, frame=self.frames[self.dropdown.current()])
         self.keyframe.grid(row=0, column=1)
         self.update_keyframe()
+
+    def copy_command(self): ...
+
+    def paste_command(self): ...
+
+    def animate_command(self): ...
 
     def select_keyframe(self, _):
         self.keyframe.update()
@@ -223,20 +305,52 @@ class SulfurGui(tk.Frame):
             ]
         )
 
-    def render_preview(self):
-        print("Rendering preview")
+    def pairs_for_splines(self):
+        return [(frame, frame.time) for frame in self.frames]
+
+    def render_to_image(
+        self,
+        w: int,
+        h: int,
+        supersampling: int,
+        seeds: int,
+        iters: int,
+        skip: int,
+        brightness: float,
+        gamma: float,
+        vibrancy: float,
+        t: float,
+    ) -> Image.Image:
         self.keyframe.update()
-        # self.renderer.update_to_match(100, 100, 1, 50, self.n_colors, self.n_transforms)
-        frame = self.frames[self.dropdown.current()]
-        img = self.renderer.render(
-            frame.camera, frame.transforms, frame.palette, 100, 15
+        pairs = self.pairs_for_splines()
+        frame = util.spline_step(pairs, t)
+        print(frame)
+        self.renderer.update_to_match(
+            w, h, supersampling, seeds, self.n_colors, self.n_transforms
         )
-        img.save("render_preview.png")
+        return self.renderer.render(
+            frame.camera,
+            frame.transforms,
+            frame.palette,
+            iters,
+            skip,
+            vibrancy,
+            gamma,
+            brightness,
+        )
+
+    def render_preview(self, time):
+        img = self.render_to_image(
+            _PREVIEW_SIZE, _PREVIEW_SIZE, 1, 100, 100, 15, 20, 1, 1, time
+        )
         print(img.mode)
         photo = ImageTk.PhotoImage(image=img)
         self.preview.config(image=photo)
         self.preview.image = photo
-        print("Done")
+
+    def render_preview_now(self):
+        time = sum(map(lambda x: x.time, self.frames[: self.dropdown.current() + 1]))
+        self.render_preview(time)
 
 
 class ScrollableFrame(tk.Frame):
@@ -496,7 +610,9 @@ class TransformFrame(tk.Frame):
         self.var_editor.grid(row=5, column=1)
 
         self.dropdown = ttk.Combobox(
-            self, values=[v.name for v in variations.Variation.variations]
+            self,
+            values=[v.name for v in variations.Variation.variations],
+            state="readonly",
         )
         self.dropdown.bind("<<ComboboxSelected>>", self.variation_selected)
         self.dropdown.set(variations.Variation.variations[0].name)
@@ -583,7 +699,9 @@ class KeyframeFrame(tk.Frame):
             self.color_pickers.append(color_frame)
 
         self.dropdown = ttk.Combobox(
-            self, values=[f"Transform #{i}" for i in range(self.n_transforms)]
+            self,
+            values=[f"Transform #{i}" for i in range(self.n_transforms)],
+            state="readonly",
         )
         self.dropdown.set(f"Transform #{self.tf_num}")
         self.dropdown.grid(row=4, column=0, sticky="w")
