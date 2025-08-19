@@ -32,8 +32,8 @@ class RenderFrame:
 
     def __mul__(self, other) -> "RenderFrame":
         return RenderFrame(
-            np.asarray(self.transforms, dtype=np.float64) * other,
-            np.asarray(self.palette, dtype=np.float64) * other,
+            [tf * other for tf in self.transforms],
+            list(np.asarray(self.palette, dtype=np.float64) * other),
             np.asarray(self.camera, dtype=np.float64) * other,
             self.time * other,
         )
@@ -42,10 +42,9 @@ class RenderFrame:
         assert len(self.transforms) == len(other.transforms)
         assert len(self.palette) == len(other.palette)
         return RenderFrame(
-            np.asarray(self.transforms, dtype=np.float64)
-            + np.asarray(other.transforms, dtype=np.float64),
-            np.asarray(self.palette, dtype=np.float64)
-            + np.asarray(other.palette, dtype=np.float64),
+            [stf + otf for stf, otf in zip(self.transforms, other.transforms)],
+            list(np.asarray(self.palette, dtype=np.float64)
+            + np.asarray(other.palette, dtype=np.float64)),
             np.asarray(self.camera, dtype=np.float64)
             + np.asarray(other.camera, dtype=np.float64),
             self.time + other.time,
@@ -67,7 +66,7 @@ class RenderFrame:
     def read_json(s: str) -> "RenderFrame":
         d = json.loads(s)
         transforms = list(map(pysulfur.Transform.from_dict, d["transforms"]))
-        palette = np.asarray(d["palette"], dtype=np.float64)
+        palette = list(np.asarray(d["palette"], dtype=np.float64))
         camera = np.asarray(d["camera"], dtype=np.float64)
         time = d["time"]
         return RenderFrame(transforms, palette, camera, time)

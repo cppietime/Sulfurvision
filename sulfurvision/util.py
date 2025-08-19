@@ -2,7 +2,7 @@ import typing
 
 
 def lerp(a: typing.Any, b: typing.Any, z: float) -> typing.Any:
-    return a + (b - a) * z
+    return a + (b + a * -1) * z
 
 
 def smoothstep(t: float) -> float:
@@ -15,7 +15,6 @@ def catmull_rom(
     t: float,
     time: typing.Sequence[float] = (-1, 0, 1, 2),
 ) -> typing.Any:
-    print(f"Splining {time} for {t}")
     a1 = ((time[1] - t) * values[0] + (t - time[0]) * values[1]) / (time[1] - time[0])
     a2 = ((time[2] - t) * values[1] + (t - time[1]) * values[2]) / (time[2] - time[1])
     a3 = ((time[3] - t) * values[2] + (t - time[2]) * values[3]) / (time[3] - time[2])

@@ -1,3 +1,5 @@
+import sys
+import threading
 import tkinter as tk
 from tkinter import colorchooser, ttk
 
@@ -238,11 +240,11 @@ class SulfurGui(tk.Frame):
         self.preview_t.grid(row=12, column=2)
 
         self.now_button = tk.Button(
-            self.anim_frame, text="Render This Frame", command=lambda: ()
+            self.anim_frame, text="Render This Frame", command=self.save_now
         )
         self.now_button.grid(row=12, column=0)
         self.then_button = tk.Button(
-            self.anim_frame, text="Render At t=", command=lambda: ()
+            self.anim_frame, text="Render At t=", command=self.save(self.t_var.get())
         )
         self.then_button.grid(row=12, column=1)
 
@@ -274,11 +276,30 @@ class SulfurGui(tk.Frame):
 
         self.clipboard = None
 
-    def animate_command(self): ...
+    def animate_command(self):
+        """ TODO:
+        - File dialog to choose output directory
+        - Read all relevant variables for rendering
+        - Iterate through time using framerate
+        - At each time step, render the interpolated flame and save to a numbered image file
+        """
+        ...
 
-    def imp_command(self): ...
+    def imp_command(self):
+        """ TODO:
+        - Present a file dialog to select a file
+        - Load contents as JSON
+        - Decode and populate GUI
+        """
+        ...
 
-    def exp_command(self): ...
+    def exp_command(self):
+        """ TODO:
+        - File dialog to select destination path
+        - Convert contents to JSON
+        - Save to file
+        """
+        ...
 
     def select_keyframe(self, _):
         self.keyframe.update()
@@ -371,17 +392,41 @@ class SulfurGui(tk.Frame):
             brightness,
         )
 
+    def allow_rendering(self, allow: bool):
+        state = 'normal' if allow else 'disabled'
+        self.preview_this.config(state=state)
+        self.preview_then.config(state=state)
+        self.now_button.config(state=state)
+        self.then_button.config(state=state)
+
     def render_preview(self, time):
-        img = self.render_to_image(
-            _PREVIEW_SIZE, _PREVIEW_SIZE, 1, 100, 100, 15, 20, 1, 1, time
-        )
-        photo = ImageTk.PhotoImage(image=img)
-        self.preview.config(image=photo)
-        self.preview.image = photo
+        def _func():
+            self.allow_rendering(False)
+            img = self.render_to_image(
+                _PREVIEW_SIZE, _PREVIEW_SIZE, 1, 100, 100, 15, 20, 1, 1, time
+            )
+            photo = ImageTk.PhotoImage(image=img)
+            self.preview.config(image=photo)
+            self.preview.image = photo
+            self.allow_rendering(True)
+        threading.Thread(target=_func).start()
 
     def render_preview_now(self):
         time = sum(map(lambda x: x.time, self.frames[: self.dropdown.current() + 1]))
         self.render_preview(time)
+
+    def save(self, t: float):
+        """ TODO:
+        - Present a dialog to choose a target destination file path
+        - Read all relevant variables for rendering
+        - Render to an Image
+        - Save to file
+        """
+        ...
+
+    def save_now(self):
+        time = sum(map(lambda x: x.time, self.frames[: self.dropdown.current() + 1]))
+        self.save(time)
 
 
 class ScrollableFrame(tk.Frame):
@@ -619,8 +664,6 @@ class TransformFrame(tk.Frame):
         self.paste = tk.Button(self, text="Paste Transform", command=self.paste_command)
         self.paste.grid(row=1, column=2)
 
-        # self.color_frame = ColorPickerFrame(self)
-        # self.color_frame.grid(row=3, column=0, columnspan=2)
         self.color_label = tk.Label(self, text="Color:")
         self.color_label.grid(row=3, column=0, sticky="w")
         self.color_var = tk.DoubleVar(value=0)
@@ -668,7 +711,13 @@ class TransformFrame(tk.Frame):
         if self.clipboard is None:
             return
         transform = pysulfur.Transform.read_json(self.clipboard)
-        self.load(transform)
+        self.transform.affine = transform.affine
+        self.transform.color = transform.color
+        self.transform.color_speed = transform.color_speed
+        self.transform.probability = transform.probability
+        self.transform.weights = transform.weights
+        self.transform.params = transform.params
+        self.load(self.transform)
 
     def variation_selected(self, _):
         # Save old values
@@ -776,8 +825,12 @@ class KeyframeFrame(tk.Frame):
     def paste_command(self):
         if self.clipboard is None:
             return
-        # TODO check for matching dimensions
-        self.load(render.RenderFrame.read_json(self.clipboard))
+        frame = render.RenderFrame.read_json(self.clipboard)
+        if self.n_colors != len(frame.palette) or self.n_transforms != len(frame.transforms):
+            print('Color or transform sizes of frames do not match', file=sys.stderr)
+            return
+        self.frame.__dict__.update(frame.__dict__)
+        self.load(self.frame)
 
     def transform_selected(self, _):
         self.update_current_transform()
@@ -801,7 +854,6 @@ class KeyframeFrame(tk.Frame):
         self.tf_frame.load(self.frame.transforms[self.dropdown.current()])
 
     def load(self, frame):
-        print(frame, "\nVS\n", self.frame)
         self.frame = frame
         self.n_colors = len(self.frame.palette)
         self.n_transforms = len(self.frame.transforms)
