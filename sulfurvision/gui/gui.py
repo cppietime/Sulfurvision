@@ -1,7 +1,9 @@
+import json
+from os import path
 import sys
 import threading
 import tkinter as tk
-from tkinter import colorchooser, ttk
+from tkinter import colorchooser, filedialog, ttk
 
 import numpy as np
 from PIL import Image, ImageTk
@@ -152,7 +154,7 @@ class SulfurGui(tk.Frame):
 
         self.bright_label = tk.Label(self.anim_frame, text="Brightness:")
         self.bright_label.grid(row=5, column=0)
-        self.bright_var = tk.DoubleVar(value=20)
+        self.bright_var = tk.DoubleVar(value=10)
         self.bright_box = tk.Entry(
             self.anim_frame,
             textvariable=self.bright_var,
@@ -163,7 +165,7 @@ class SulfurGui(tk.Frame):
 
         self.gamma_label = tk.Label(self.anim_frame, text="Gamma:")
         self.gamma_label.grid(row=6, column=0)
-        self.gamma_var = tk.DoubleVar(value=20)
+        self.gamma_var = tk.DoubleVar(value=1)
         self.gamma_box = tk.Entry(
             self.anim_frame,
             textvariable=self.gamma_var,
@@ -174,7 +176,7 @@ class SulfurGui(tk.Frame):
 
         self.vib_label = tk.Label(self.anim_frame, text="Vibrancy:")
         self.vib_label.grid(row=7, column=0)
-        self.vib_var = tk.DoubleVar(value=20)
+        self.vib_var = tk.DoubleVar(value=1)
         self.vib_box = tk.Entry(
             self.anim_frame,
             textvariable=self.vib_var,
@@ -216,10 +218,6 @@ class SulfurGui(tk.Frame):
         )
         self.skip_box.grid(row=10, column=1)
 
-        # Row 11: Preview
-        # Row 12: Render
-        # Row 13: Animate
-
         self.preview_this = tk.Button(
             self.anim_frame, text="Preview This Frame", command=self.render_preview_now
         )
@@ -244,7 +242,7 @@ class SulfurGui(tk.Frame):
         )
         self.now_button.grid(row=12, column=0)
         self.then_button = tk.Button(
-            self.anim_frame, text="Render At t=", command=self.save(self.t_var.get())
+            self.anim_frame, text="Render At t=", command=lambda: self.save(self.t_var.get())
         )
         self.then_button.grid(row=12, column=1)
 
@@ -263,6 +261,12 @@ class SulfurGui(tk.Frame):
         )
         self.animate.grid(row=13, column=2)
 
+        self.sample_label = tk.Label(self.anim_frame, text='Supersampling:')
+        self.sample_label.grid(row=14, column=0)
+        self.sample_var = tk.IntVar(value=1)
+        self.sample_box = tk.Entry(self.anim_frame, textvariable=self.sample_var, validate='all', validatecommand=(SulfurGui.validate_int, '%P'))
+        self.sample_box.grid(row=14, column=1)
+
         self.imp = tk.Button(self.anim_frame, text="Import", command=self.imp_command)
         self.imp.grid(row=10, column=2)
         self.exp = tk.Button(self.anim_frame, text="Export", command=self.exp_command)
@@ -275,31 +279,62 @@ class SulfurGui(tk.Frame):
         self.render_preview_now()
 
         self.clipboard = None
+    
+    def dump_json(self) -> str:
+        d = {
+            'n_transforms': self.n_transforms,
+            'n_colors': self.n_colors,
+            'width': int_from_var(self.width_var),
+            'height': int_from_var(self.height_var),
+            'brightness': float_from_var(self.bright_var),
+            'gamma': float_from_var(self.gamma_var),
+            'vibrancy': float_from_var(self.vib_var),
+            'seeds': int_from_var(self.seed_var),
+            'iters': int_from_var(self.iter_var),
+            'skip': int_from_var(self.skip_var),
+            'supersample': int_from_var(self.sample_var),
+            'rate': float_from_var(self.rate_var),
+            'frames': [
+                json.loads(frame.dump_json()) for frame in self.frames
+            ]
+        }
+        return json.dumps(d)
 
-    def animate_command(self):
-        """ TODO:
-        - File dialog to choose output directory
-        - Read all relevant variables for rendering
-        - Iterate through time using framerate
-        - At each time step, render the interpolated flame and save to a numbered image file
-        """
-        ...
+    def load_json(self, s: str):
+        d = json.loads(s)
+        self.n_transforms = d['n_transforms']
+        self.n_colors = d['n_colors']
+        self.tf_var.set(self.n_transforms)
+        self.pal_var.set(self.n_colors)
+        self.width_var.set(d['width'])
+        self.height_var.set(d['height'])
+        self.bright_var.set(d['brightness'])
+        self.gamma_var.set(d['gamma'])
+        self.vib_var.set(d['vibrancy'])
+        self.seed_var.set(d['seeds'])
+        self.iter_var.set(d['iters'])
+        self.skip_var.set(d['skip'])
+        self.sample_var.set(d['supersample'])
+        self.rate_var.set(d['rate'])
+        self.frames = list(map(render.RenderFrame.from_dict, d['frames']))
 
     def imp_command(self):
-        """ TODO:
-        - Present a file dialog to select a file
-        - Load contents as JSON
-        - Decode and populate GUI
-        """
-        ...
+        fpath = filedialog.askopenfilename(title='Import JSON', defaultextension='.json', filetypes=(('JSON', '*.json'), ('Plaintext', '.txt')))
+        if not fpath:
+            return
+        with open(fpath, 'r') as file:
+            s = file.read()
+        self.load_json(s)
+        self.update_keyframe()
 
     def exp_command(self):
-        """ TODO:
-        - File dialog to select destination path
-        - Convert contents to JSON
-        - Save to file
-        """
-        ...
+        fpath = filedialog.asksaveasfilename(title='Export as JSON', defaultextension='.json', filetypes=(('JSON', '*.json'), ('Plaintext', '.txt')))
+        if not fpath:
+            return
+        self.keyframe.update()
+        s = self.dump_json()
+        with open(fpath, 'w') as file:
+            file.write(s)
 
     def select_keyframe(self, _):
         self.keyframe.update()
@@ -367,22 +402,22 @@ class SulfurGui(tk.Frame):
         w: int,
         h: int,
         supersampling: int,
-        seeds: int,
-        iters: int,
-        skip: int,
-        brightness: float,
-        gamma: float,
-        vibrancy: float,
         t: float,
     ) -> Image.Image:
         self.keyframe.update()
         pairs = self.pairs_for_splines()
         frame = util.spline_step(pairs, t)
+        seeds = int_from_var(self.seed_var)
+        iters = int_from_var(self.iter_var)
+        skip = int_from_var(self.skip_var)
+        vibrancy = float_from_var(self.vib_var)
+        gamma = float_from_var(self.gamma_var)
+        brightness = float_from_var(self.bright_var)
         self.renderer.update_to_match(
             w, h, supersampling, seeds, self.n_colors, self.n_transforms
         )
         return self.renderer.render(
-            frame.camera,
+            pysulfur.affine_compose(frame.camera, np.array([w * supersampling, 0, 0, 0, h * supersampling, 0])),
             frame.transforms,
             frame.palette,
             iters,
@@ -403,7 +438,7 @@ class SulfurGui(tk.Frame):
         def _func():
             self.allow_rendering(False)
             img = self.render_to_image(
-                _PREVIEW_SIZE, _PREVIEW_SIZE, 1, 100, 100, 15, 20, 1, 1, time
+                _PREVIEW_SIZE, _PREVIEW_SIZE, 1, time
             )
             photo = ImageTk.PhotoImage(image=img)
             self.preview.config(image=photo)
@@ -416,17 +451,41 @@ class SulfurGui(tk.Frame):
         self.render_preview(time)
 
     def save(self, t: float):
-        """ TODO:
-        - Present a dialog to choose a target destination file path
-        - Read all relevant variables for rendering
-        - Render to an Image
-        - Save to file
-        """
-        ...
+        fpath = filedialog.asksaveasfilename(title='Save render', filetypes=(('PNG', '*.png'), ('JPEG', '*.jpg')))
+        if not fpath:
+            return
+        width = int_from_var(self.width_var)
+        height = int_from_var(self.height_var)
+        supersampling = int_from_var(self.sample_var)
+        def _func():
+            self.allow_rendering(False)
+            img = self.render_to_image(width, height, supersampling, t)
+            img.save(fpath)
+            self.allow_rendering(True)
+        threading.Thread(target=_func).start()
 
     def save_now(self):
         time = sum(map(lambda x: x.time, self.frames[: self.dropdown.current() + 1]))
         self.save(time)
+
+    def animate_command(self):
+        fpath = filedialog.askdriectory(title='Choose a directory to save frames to...')
+        if not fpath:
+            return
+        width = int_from_var(self.width_var)
+        height = int_from_var(self.height_var)
+        supersampling = int_from_var(self.sample_var)
+        framerate = float_from_var(self.rate_var)
+        if framerate <= 0:
+            return
+        max_t = sum(map(lambda frame: frame.time, self.frames))
+        def _func():
+            self.allow_rendering(False)
+            for i, t in enumerate(np.arange(0, max_t, 1 / framerate)):
+                img = self.render_to_image(width, height, supersampling, t)
+                img.save(path.join(fpath, f'frame_{i:06}.png'))
+            self.allow_rendering(True)
+        threading.Thread(target=_func).start()
 
 
 class ScrollableFrame(tk.Frame):

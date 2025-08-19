@@ -65,6 +65,10 @@ class RenderFrame:
     @staticmethod
     def read_json(s: str) -> "RenderFrame":
         d = json.loads(s)
+        return RenderFrame.from_dict(d)
+    
+    @staticmethod
+    def from_dict(d: dict[str, any]) -> 'RenderFrame':
         transforms = list(map(pysulfur.Transform.from_dict, d["transforms"]))
         palette = list(np.asarray(d["palette"], dtype=np.float64))
         camera = np.asarray(d["camera"], dtype=np.float64)

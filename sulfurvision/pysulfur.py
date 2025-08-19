@@ -21,6 +21,18 @@ def affine_transform(coord: types.Coord, affine: types.AffineTransform) -> types
         )
     )
 
+def affine_compose(first: types.AffineTransform, second: types.AffineTransform) -> types.AffineTransform:
+    return np.array(
+        (
+            second[0] * first[0] + second[1] * first[3],
+            second[0] * first[1] + second[1] * first[4],
+            second[0] * first[2] + second[1] * first[5] + second[2],
+            second[3] * first[0] + second[4] * first[3],
+            second[3] * first[1] + second[4] * first[4],
+            second[3] * first[2] + second[4] * first[5] + second[5]
+        )
+    )
+
 
 @dataclasses.dataclass
 class Event:
