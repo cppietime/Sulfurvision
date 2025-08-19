@@ -38,13 +38,15 @@ def spline_step(
     time = 0
     t1 = len(pairs) - 1
     for i, (_, dt) in enumerate(pairs):
-        time += dt
+        time = dt
         times[i] = time
         if time >= t and i - 1 < t1:
             t1 = i - 1
+    print(f'For {times}: {t} -> {t1}')
     if t1 < 0 or t1 >= len(pairs) - 1:  # Before sequence starts
         raise ValueError("This should not be possible")
-    if t1 == 0 or t1 == len(pairs) - 2:  # Lerp two elements
+    if t1 == 0 or t1 == len(pairs) - 2 or True:  # Lerp two elements
+        # Giving up and lerping for now
         return lerp(
             pairs[t1][0],
             pairs[t1 + 1][0],

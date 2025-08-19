@@ -326,6 +326,7 @@ class SulfurGui(tk.Frame):
             s = file.read()
         self.load_json(s)
         self.update_keyframe()
+        self.refresh_dropdown()
 
     def exp_command(self):
         fpath = filedialog.asksaveasfilename(title='Export as JSON', defaultextension='.json', filetypes=(('JSON', '*.json'), ('Plaintext', '.txt')))
@@ -395,7 +396,12 @@ class SulfurGui(tk.Frame):
         )
 
     def pairs_for_splines(self):
-        return [(frame, frame.time) for frame in self.frames]
+        pairs = []
+        t = 0
+        for frame in self.frames:
+            t += frame.time
+            pairs.append((frame, t))
+        return pairs
 
     def render_to_image(
         self,
@@ -469,7 +475,7 @@ class SulfurGui(tk.Frame):
         self.save(time)
 
     def animate_command(self):
-        fpath = filedialog.askdriectory(title='Choose a directory to save frames to...')
+        fpath = filedialog.askdirectory(title='Choose a directory to save frames to...')
         if not fpath:
             return
         width = int_from_var(self.width_var)
@@ -484,6 +490,7 @@ class SulfurGui(tk.Frame):
             for i, t in enumerate(np.arange(0, max_t, 1 / framerate)):
                 img = self.render_to_image(width, height, supersampling, t)
                 img.save(path.join(fpath, f'frame_{i:06}.png'))
+                print(f'Saved frame #{i} at {t=}')
             self.allow_rendering(True)
         threading.Thread(target=_func).start()
 
@@ -808,8 +815,15 @@ class TransformFrame(tk.Frame):
         self.color_var.set(transform.color)
         self.speed_var.set(transform.color_speed)
         self.prob_var.set(transform.probability)
-        self.dropdown.set(variations.Variation.variations[0].name)
-        self.var_editor.load(variations.Variation.variations[0], transform)
+        old_name = self.var_editor.label.cget("text")
+        if old_name in variations.Variation.variations_map:
+            self.dropdown.set(old_name)
+            self.var_editor.load(variations.Variation.variations[
+                variations.Variation.variations_map[old_name]
+            ], transform)
+        else:
+            self.dropdown.set(variations.Variation.variations[0])
+            self.var_editor.load(variations.Variation.variations[0], transform)
 
     def update(self):
         if not self.transform:

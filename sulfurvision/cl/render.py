@@ -38,6 +38,8 @@ class RenderFrame:
             self.time * other,
         )
 
+    def __rmul__(self, other): return self * other
+
     def __add__(self, other) -> "RenderFrame":
         assert len(self.transforms) == len(other.transforms)
         assert len(self.palette) == len(other.palette)
@@ -49,6 +51,10 @@ class RenderFrame:
             + np.asarray(other.camera, dtype=np.float64),
             self.time + other.time,
         )
+    
+    def __radd__(self, other): return self + other
+
+    def __truediv__(self, other): return self * (1. / other)
 
     def dump_json(self) -> str:
         tf_list = [json.loads(tf.dump_json()) for tf in self.transforms]
