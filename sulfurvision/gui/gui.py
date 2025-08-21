@@ -152,39 +152,6 @@ class SulfurGui(tk.Frame):
         )
         self.height_box.grid(row=4, column=1)
 
-        self.bright_label = tk.Label(self.anim_frame, text="Brightness:")
-        self.bright_label.grid(row=5, column=0)
-        self.bright_var = tk.DoubleVar(value=10)
-        self.bright_box = tk.Entry(
-            self.anim_frame,
-            textvariable=self.bright_var,
-            validate="all",
-            validatecommand=(SulfurGui.validate_float, "%P"),
-        )
-        self.bright_box.grid(row=5, column=1)
-
-        self.gamma_label = tk.Label(self.anim_frame, text="Gamma:")
-        self.gamma_label.grid(row=6, column=0)
-        self.gamma_var = tk.DoubleVar(value=1)
-        self.gamma_box = tk.Entry(
-            self.anim_frame,
-            textvariable=self.gamma_var,
-            validate="all",
-            validatecommand=(SulfurGui.validate_float, "%P"),
-        )
-        self.gamma_box.grid(row=6, column=1)
-
-        self.vib_label = tk.Label(self.anim_frame, text="Vibrancy:")
-        self.vib_label.grid(row=7, column=0)
-        self.vib_var = tk.DoubleVar(value=1)
-        self.vib_box = tk.Entry(
-            self.anim_frame,
-            textvariable=self.vib_var,
-            validate="all",
-            validatecommand=(SulfurGui.validate_float, "%P"),
-        )
-        self.vib_box.grid(row=7, column=1)
-
         self.seed_label = tk.Label(self.anim_frame, text="Seeds:")
         self.seed_label.grid(row=8, column=0)
         self.seed_var = tk.IntVar(value=20)
@@ -286,9 +253,6 @@ class SulfurGui(tk.Frame):
             'n_colors': self.n_colors,
             'width': int_from_var(self.width_var),
             'height': int_from_var(self.height_var),
-            'brightness': float_from_var(self.bright_var),
-            'gamma': float_from_var(self.gamma_var),
-            'vibrancy': float_from_var(self.vib_var),
             'seeds': int_from_var(self.seed_var),
             'iters': int_from_var(self.iter_var),
             'skip': int_from_var(self.skip_var),
@@ -308,9 +272,6 @@ class SulfurGui(tk.Frame):
         self.pal_var.set(self.n_colors)
         self.width_var.set(d['width'])
         self.height_var.set(d['height'])
-        self.bright_var.set(d['brightness'])
-        self.gamma_var.set(d['gamma'])
-        self.vib_var.set(d['vibrancy'])
         self.seed_var.set(d['seeds'])
         self.iter_var.set(d['iters'])
         self.skip_var.set(d['skip'])
@@ -413,12 +374,13 @@ class SulfurGui(tk.Frame):
         self.keyframe.update()
         pairs = self.pairs_for_splines()
         frame = util.spline_step(pairs, t)
+        frame.normalize()
         seeds = int_from_var(self.seed_var)
         iters = int_from_var(self.iter_var)
         skip = int_from_var(self.skip_var)
-        vibrancy = float_from_var(self.vib_var)
-        gamma = float_from_var(self.gamma_var)
-        brightness = float_from_var(self.bright_var)
+        vibrancy = frame.vibrancy
+        gamma = frame.gamma
+        brightness = frame.brightness
         self.renderer.update_to_match(
             w, h, supersampling, seeds, self.n_colors, self.n_transforms
         )
@@ -484,10 +446,13 @@ class SulfurGui(tk.Frame):
         framerate = float_from_var(self.rate_var)
         if framerate <= 0:
             return
+        start_t = self.t_var.get()
         max_t = sum(map(lambda frame: frame.time, self.frames))
         def _func():
             self.allow_rendering(False)
             for i, t in enumerate(np.arange(0, max_t, 1 / framerate)):
+                if t < start_t:
+                    continue
                 img = self.render_to_image(width, height, supersampling, t)
                 img.save(path.join(fpath, f'frame_{i:06}.png'))
                 print(f'Saved frame #{i} at {t=}')
@@ -757,11 +722,11 @@ class TransformFrame(tk.Frame):
 
         self.dropdown = ttk.Combobox(
             self,
-            values=[v.name for v in variations.Variation.variations],
+            values=[f'{v.name}' for v in variations.Variation.variations],
             state="readonly",
         )
         self.dropdown.bind("<<ComboboxSelected>>", self.variation_selected)
-        self.dropdown.set(variations.Variation.variations[0].name)
+        self.dropdown.current(0)
         self.dropdown.grid(row=5, column=0)
 
         if self.transform:
@@ -791,9 +756,7 @@ class TransformFrame(tk.Frame):
 
         # Update editor to new variation
         self.var_editor.load(
-            variations.Variation.variations[
-                variations.Variation.variations_map[self.dropdown.get()]
-            ],
+            variations.Variation.variations[self.dropdown.current()],
             self.transform,
         )
 
@@ -816,14 +779,16 @@ class TransformFrame(tk.Frame):
         self.speed_var.set(transform.color_speed)
         self.prob_var.set(transform.probability)
         old_name = self.var_editor.label.cget("text")
-        if old_name in variations.Variation.variations_map:
-            self.dropdown.set(old_name)
-            self.var_editor.load(variations.Variation.variations[
-                variations.Variation.variations_map[old_name]
-            ], transform)
-        else:
-            self.dropdown.set(variations.Variation.variations[0])
-            self.var_editor.load(variations.Variation.variations[0], transform)
+        self.dropdown.config(values=[f'{var.name}: {self.transform.weights[i]:.03f}' for i, var in enumerate(variations.Variation.variations)])
+        #if old_name in variations.Variation.variations_map:
+        #    self.dropdown.set(variations.Variation.variations_map[old_name])
+        #    self.var_editor.load(variations.Variation.variations[
+        #        variations.Variation.variations_map[old_name]
+        #    ], transform)
+        #else:
+        #    self.dropdown.current(0)
+        #    self.var_editor.load(variations.Variation.variations[0], transform)
+        self.var_editor.load(variations.Variation.variations[self.dropdown.current()], self.transform)
 
     def update(self):
         if not self.transform:
@@ -835,6 +800,7 @@ class TransformFrame(tk.Frame):
         self.update_current_variation()
         if abs(self.transform.weights.sum()) > 1e-9:
             self.transform.weights /= self.transform.weights.sum()
+        self.dropdown.config(values=[f'{var.name}: {self.transform.weights[i]:.03f}' for i, var in enumerate(variations.Variation.variations)])
 
 
 class KeyframeFrame(tk.Frame):
@@ -855,26 +821,47 @@ class KeyframeFrame(tk.Frame):
         )
         self.time_box.grid(row=0, column=1, sticky="e")
 
+        self.rand_button = tk.Button(self, text='Randomize', command=self.randomize)
+        self.rand_button.grid(row=0, column=2)
+
         self.camera_label = tk.Label(self, text="Camera:")
         self.camera_label.grid(row=1, column=0, sticky="w")
         self.camera_frame = AffineTransformFrame(self)
-        self.camera_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.camera_frame.grid(row=2, column=0, columnspan=3, sticky="ew")
         self.camera_frame.set_affine(self.frame.camera)
 
         self.palette_frame = ScrollableFrame(self)
-        self.palette_frame.grid(row=3, column=0, columnspan=2, sticky="ew")
+        self.palette_frame.grid(row=3, column=0, columnspan=3, sticky="ew")
         self.color_pickers = []
         for i, color in enumerate(self.frame.palette):
             color_frame = ColorPickerFrame(self.palette_frame.frame, color=color)
             color_frame.grid(row=i, column=0, sticky="ew")
             self.color_pickers.append(color_frame)
+        
+        self.brightness_label = tk.Label(self, text="Brightness:")
+        self.brightness_label.grid(row=4, column=0)
+        self.brightness_var = tk.DoubleVar(value=10)
+        self.brightness_box = tk.Entry(self, textvariable=self.brightness_var, validate='all', validatecommand=(SulfurGui.validate_float, '%P'))
+        self.brightness_box.grid(row=5, column=0)
+        
+        self.gamma_label = tk.Label(self, text="Gamma:")
+        self.gamma_label.grid(row=4, column=1)
+        self.gamma_var = tk.DoubleVar(value=10)
+        self.gamma_box = tk.Entry(self, textvariable=self.gamma_var, validate='all', validatecommand=(SulfurGui.validate_float, '%P'))
+        self.gamma_box.grid(row=5, column=1)
+        
+        self.vibrancy_label = tk.Label(self, text="Vibrancy:")
+        self.vibrancy_label.grid(row=4, column=2)
+        self.vibrancy_var = tk.DoubleVar(value=10)
+        self.vibrancy_box = tk.Entry(self, textvariable=self.vibrancy_var, validate='all', validatecommand=(SulfurGui.validate_float, '%P'))
+        self.vibrancy_box.grid(row=5, column=2)
 
         self.copy_frame = tk.Button(self, text="Copy Frame", command=self.copy_command)
-        self.copy_frame.grid(row=4, column=0)
+        self.copy_frame.grid(row=6, column=0)
         self.paste_frame = tk.Button(
             self, text="Paste Frame", command=self.paste_command
         )
-        self.paste_frame.grid(row=4, column=1)
+        self.paste_frame.grid(row=6, column=1)
 
         self.dropdown = ttk.Combobox(
             self,
@@ -882,12 +869,12 @@ class KeyframeFrame(tk.Frame):
             state="readonly",
         )
         self.dropdown.set(f"Transform #{self.tf_num}")
-        self.dropdown.grid(row=5, column=0, sticky="w")
+        self.dropdown.grid(row=7, column=0, sticky="w")
         self.dropdown.bind("<<ComboboxSelected>>", self.transform_selected)
         self.tf_frame = TransformFrame(
             self, transform=self.frame.transforms[self.tf_num]
         )
-        self.tf_frame.grid(row=6, column=0, columnspan=2)
+        self.tf_frame.grid(row=8, column=0, columnspan=3)
 
         self.clipboard = None
 
@@ -920,6 +907,9 @@ class KeyframeFrame(tk.Frame):
         for i in range(self.n_colors):
             color_frame = self.color_pickers[i]
             self.frame.palette[i] = color_frame.get_color()
+        self.frame.brightness = self.brightness_var.get()
+        self.frame.gamma = self.gamma_var.get()
+        self.frame.vibrancy = self.vibrancy_var.get()
         total_prob = sum(map(lambda tf: tf.probability, self.frame.transforms))
         if abs(total_prob) > 1e-9:
             for tf in self.frame.transforms:
@@ -942,11 +932,37 @@ class KeyframeFrame(tk.Frame):
             color_picker.grid(row=i, column=0)
         for i in range(self.n_colors, len(self.color_pickers)):
             self.color_pickers[i].grid_forget()
+        self.brightness_var.set(self.frame.brightness)
+        self.gamma_var.set(self.frame.gamma)
+        self.vibrancy_var.set(self.frame.vibrancy)
         self.dropdown.config(
             values=[f"Transform #{i}" for i in range(self.n_transforms)]
         )
         self.dropdown.set(f"Transform #{self.tf_num}")
         self.tf_frame.load(self.frame.transforms[self.tf_num])
+    
+    def randomize(self):
+        # Randomize palette
+        for i in range(self.n_colors):
+            r, g, b = np.random.random((3,)) * 255
+            self.color_pickers[i].set_color((r, g, b))
+            self.frame.palette[i] = np.floor(np.array([r, g, b, 1]))
+        
+        # Transforms
+        for i, tf in enumerate(self.frame.transforms):
+            tf.probability = np.random.random()
+            tf.affine = np.random.random((6,)) * 2 - 1
+            tf.color = np.random.random() * (self.n_colors - 1)
+            tf.color_speed = np.random.random()
+            tf.weights = np.zeros((len(tf.weights),))
+            num_vars = np.random.randint(1, 5)
+            choices = np.random.choice(len(tf.weights), (num_vars,), replace=False)
+            for choice in choices:
+                tf.weights[choice] = np.random.random()
+            tf.params = np.random.random((len(tf.params,))) * 2 - 1
+        
+        self.frame.normalize()
+        self.load(self.frame)
 
 
 def main():

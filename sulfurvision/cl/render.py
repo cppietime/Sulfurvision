@@ -29,6 +29,9 @@ class RenderFrame:
     palette: typing.Sequence[types.Color]
     camera: types.AffineTransform
     time: float
+    brightness: float = 10.0
+    gamma: float = 1.0
+    vibrancy: float = 1.0
 
     def __mul__(self, other) -> "RenderFrame":
         return RenderFrame(
@@ -36,6 +39,9 @@ class RenderFrame:
             list(np.asarray(self.palette, dtype=np.float64) * other),
             np.asarray(self.camera, dtype=np.float64) * other,
             self.time * other,
+            self.brightness * other,
+            self.gamma * other,
+            self.vibrancy * other
         )
 
     def __rmul__(self, other): return self * other
@@ -50,11 +56,23 @@ class RenderFrame:
             np.asarray(self.camera, dtype=np.float64)
             + np.asarray(other.camera, dtype=np.float64),
             self.time + other.time,
+            self.brightness + other.brightness,
+            self.gamma + other.gamma,
+            self.vibrancy + other.vibrancy
         )
     
     def __radd__(self, other): return self + other
 
     def __truediv__(self, other): return self * (1. / other)
+
+    def normalize(self):
+        total_prob = sum([x.probability for x in self.transforms])
+        for tf in self.transforms:
+            total_weight = sum(tf.weights)
+            if abs(total_weight) >= 1e-9:
+                tf.weights /= total_weight
+            if abs(total_prob) >= 1e-9:
+                tf.probability /= total_prob
 
     def dump_json(self) -> str:
         tf_list = [json.loads(tf.dump_json()) for tf in self.transforms]
@@ -65,6 +83,9 @@ class RenderFrame:
                 "palette": pal_list,
                 "camera": list(self.camera),
                 "time": self.time,
+                "brightness": self.brightness,
+                "gamma": self.gamma,
+                "vibrancy": self.vibrancy
             }
         )
 
@@ -79,7 +100,10 @@ class RenderFrame:
         palette = list(np.asarray(d["palette"], dtype=np.float64))
         camera = np.asarray(d["camera"], dtype=np.float64)
         time = d["time"]
-        return RenderFrame(transforms, palette, camera, time)
+        brightness = d["brightness"]
+        gamma = d["gamma"]
+        vibrancy = d["vibrancy"]
+        return RenderFrame(transforms, palette, camera, time, brightness, gamma, vibrancy)
 
 
 class Renderer:
@@ -271,7 +295,7 @@ class Renderer:
         self.particles.set(
             np.array(
                 [
-                    rand_particle(prng.lcg32_skip(self.seed, i << 8))
+                    rand_particle(np.random.randint((1 << 31) - 1))
                     for i in range(self.n_particles)
                 ],
                 dtype=krnl.cl_types[krnl.particle_type_key],
