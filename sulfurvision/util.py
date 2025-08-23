@@ -42,14 +42,16 @@ def spline_step(
         times[i] = time
         if time >= t and i - 1 < t1:
             t1 = i - 1
-    # print(f'For {times}: {t} -> {t1}')
     if t1 < 0 or t1 >= len(pairs) - 1:  # Before sequence starts
         raise ValueError("This should not be possible")
-    if t1 == 0 or t1 == len(pairs) - 2:  # Lerp two elements
+    if t1 == 0 or t1 == len(pairs) - 2 or True: # TODO Debug: Gamma weirdness?
+        # Lerp two elements
+        frac_t = (t - pairs[t1][1]) / (pairs[t1 + 1][1] - pairs[t1][1])
+        frac_t = smoothstep(frac_t)
         return lerp(
             pairs[t1][0],
             pairs[t1 + 1][0],
-            (t - pairs[t1][1]) / (pairs[t1 + 1][1] - pairs[t1][1]),
+            frac_t,
         )
     return catmull_rom(
         [pairs[x][0] for x in range(t1 - 1, t1 + 3)],

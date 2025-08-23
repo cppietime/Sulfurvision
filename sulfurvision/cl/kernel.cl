@@ -128,13 +128,11 @@ __kernel void tonemap_kernel(
             float4 frgba = (float4)(pixptr[0], pixptr[1], pixptr[2], pixptr[3]);
             // Log-log scale
             if (mode & TONEMAP_MODE_LOG) {
-                //frgba.w = frgba.w / log10(1 + brightness * frgba.w / max_alpha);
                 frgba *= log10(1 + brightness * frgba.w / max_alpha) / frgba.w;
+                frgba = vibrancy * frgba * pow(frgba.w, gamma) / frgba.w + (1 - vibrancy) * 256 * pow(frgba / 256, gamma);
             } else {
                 frgba = (fabs(frgba.w) < EPSILON) ? (float4)(0, 0, 0, 1) : (frgba / frgba.w);
             }
-            //frgba *= pow(frgba.w, gamma) / frgba.w;
-            frgba = vibrancy * frgba * pow(frgba.w, gamma) / frgba.w + (1 - vibrancy) * 256 * pow(frgba / 256, gamma);
             frgba = clamp(frgba, 0.0, 255.0);
             pixptr[0] = frgba.x;
             pixptr[1] = frgba.y;
