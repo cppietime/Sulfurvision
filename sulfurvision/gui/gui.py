@@ -3,7 +3,7 @@ from os import path
 import sys
 import threading
 import tkinter as tk
-from tkinter import colorchooser, filedialog, ttk
+from tkinter import colorchooser, filedialog, messagebox, ttk
 
 import numpy as np
 from PIL import Image, ImageTk
@@ -407,6 +407,9 @@ class SulfurGui(tk.Frame):
             try:
                 self.allow_rendering(False)
                 job()
+            except Exception as e:
+                print(e, file=sys.stderr)
+                messagebox.showerror(title='Rendering failed', message=str(e))
             finally:
                 self.allow_rendering(True)
         threading.Thread(target=wrapper).start()
@@ -916,7 +919,11 @@ class KeyframeFrame(tk.Frame):
             return
         frame = render.RenderFrame.read_json(self.clipboard)
         if self.n_colors != len(frame.palette) or self.n_transforms != len(frame.transforms):
-            print('Color or transform sizes of frames do not match', file=sys.stderr)
+            msg = f'Current frame has {self.n_colors} colors and {self.n_transforms} transforms.\n\
+Copied frame has {len(frame.palette)} colors and {len(frame.transforms)} transforms.\n\
+Please match these values, update, and try again.'
+            print(msg, file=sys.stderr)
+            messagebox.showerror(title='Failed to paste', message=msg)
             return
         self.frame.__dict__.update(frame.__dict__)
         self.load(self.frame)
@@ -1030,9 +1037,11 @@ class KeyframeFrame(tk.Frame):
             s = file.read()
         new_frame = render.RenderFrame.read_json(s)
         if len(new_frame.palette) != len(self.frame.palette) or len(new_frame.transforms) != len(self.frame.transforms):
-            print(f'Imported frame has {len(new_frame.palette)} colors and {len(new_frame.transforms)} transforms.', file=sys.stderr)
-            print(f'Current frame has {len(self.frame.palette)} colors and {len(self.frame.transforms)} transforms.', file=sys.stderr)
-            print('Cannot import a frame when these values do not match. Please update them in the GUI.')
+            msg = f'Imported frame has {len(new_frame.palette)} colors and {len(new_frame.transforms)} transforms.\n\
+Current frame has {len(self.frame.palette)} colors and {len(self.frame.transforms)} transforms.\n\
+Cannot import a frame when these values do not match. Please update them in the GUI.'
+            print(msg, file=sys.stderr)
+            messagebox.showerror(title='Failed to import frame', message=msg)
             return
         self.load(render.RenderFrame.read_json(s), assign=False)
         self.update()
